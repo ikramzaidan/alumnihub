@@ -24,6 +24,7 @@ type Auth struct {
 type jwtUser struct {
 	ID       int    `json:"id"`
 	Username string `json:"username"`
+	Role     bool   `json:"role"`
 }
 
 type TokenPairs struct {
@@ -47,6 +48,7 @@ func (j *Auth) GenerateTokenPair(user *jwtUser) (TokenPairs, error) {
 	claims["iss"] = j.Issuer
 	claims["iat"] = time.Now().UTC().Unix()
 	claims["typ"] = "JWT"
+	claims["adm"] = user.Role
 
 	// Set the expiry for JWT
 	claims["exp"] = time.Now().UTC().Add(j.TokenExpiry).Unix()

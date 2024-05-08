@@ -11,6 +11,7 @@ type Question struct {
 	UpdatedAt    time.Time `json:"updated_at"`
 	Options      []*Option `json:"options,omitempty"`
 	OptionsArray []string  `json:"options_array,omitempty"`
+	Answers      []*Answer `json:"answers,omitempty"`
 }
 
 type Option struct {
