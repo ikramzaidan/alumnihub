@@ -20,8 +20,8 @@
 
 # Dependency directories (remove the comment below to include it)
 # vendor/
-# postgres-data/
-# public/
+postgres-data/
+public/
 
 # Go workspace file
 go.work
