@@ -20,6 +20,20 @@ SET default_tablespace = '';
 
 SET default_table_access_method = heap;
 
+--
+-- Name: users; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.users (
+    id integer NOT NULL,
+    username character varying(255) UNIQUE,
+    email character varying(255) UNIQUE,
+    password character varying(255),
+    is_admin boolean,
+    created_at timestamp without time zone,
+    updated_at timestamp without time zone
+);
+
 
 --
 -- Name: alumni; Type: TABLE; Schema: public; Owner: -
@@ -27,26 +41,31 @@ SET default_table_access_method = heap;
 
 CREATE TABLE public.alumni (
     id integer NOT NULL,
+    nisn character varying(16) UNIQUE NOT NULL,
+    nis character varying(16) UNIQUE NOT NULL,
     name character varying(512),
-    date_of_birth date,
-    place_of_birth character varying(50),
     gender character varying(1),
-    phone character varying(16)
+    phone character varying(16),
+    graduation_year integer,
+    class character varying(32),
+    user_id integer UNIQUE DEFAULT NULL
 );
 
 
 --
--- Name: users; Type: TABLE; Schema: public; Owner: -
+-- Name: alumni; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE public.users (
+CREATE TABLE public.alumni_profile (
     id integer NOT NULL,
-    username character varying(255),
-    email character varying(255),
-    password character varying(255),
-    is_admin boolean,
-    created_at timestamp without time zone,
-    updated_at timestamp without time zone
+    user_id integer UNIQUE NOT NULL,
+    alumni_id integer UNIQUE NOT NULL,
+    bio text DEFAULT NULL,
+    location character varying(255) DEFAULT NULL,
+    sm_facebook character varying(64) DEFAULT NULL,
+    sm_instagram character varying(64) DEFAULT NULL,
+    sm_twitter character varying(64) DEFAULT NULL,
+    sm_tiktok character varying(64) DEFAULT NULL
 );
 
 
@@ -123,6 +142,43 @@ CREATE TABLE public.answers (
 
 
 --
+-- Name: forums; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.forums (
+    id integer NOT NULL,
+    forum_text text,
+    user_id integer NOT NULL,
+    published_at timestamp without time zone
+);
+
+
+--
+-- Name: replies; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.replies (
+    id integer NOT NULL,
+    forum_id integer NOT NULL,
+    reply_text text,
+    user_id integer NOT NULL,
+    published_at timestamp without time zone
+);
+
+
+--
+-- Name: likes; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.likes (
+    id integer NOT NULL,
+    forum_id integer NOT NULL,
+    user_id integer NOT NULL
+);
+
+
+
+--
 -- Name: users_id_seq; Type: SEQUENCE; Schema: public; Owner: -
 --
 
@@ -142,6 +198,20 @@ ALTER TABLE public.users ALTER COLUMN id ADD GENERATED ALWAYS AS IDENTITY (
 
 ALTER TABLE public.alumni ALTER COLUMN id ADD GENERATED ALWAYS AS IDENTITY (
     SEQUENCE NAME public.alumni_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1
+);
+
+
+--
+-- Name: alumni_profile_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+ALTER TABLE public.alumni_profile ALTER COLUMN id ADD GENERATED ALWAYS AS IDENTITY (
+    SEQUENCE NAME public.alumni_profile_id_seq
     START WITH 1
     INCREMENT BY 1
     NO MINVALUE
@@ -221,6 +291,48 @@ ALTER TABLE public.answers ALTER COLUMN id ADD GENERATED ALWAYS AS IDENTITY (
 
 
 --
+-- Name: forums_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+ALTER TABLE public.forums ALTER COLUMN id ADD GENERATED ALWAYS AS IDENTITY (
+    SEQUENCE NAME public.forums_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1
+);
+
+
+--
+-- Name: replies_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+ALTER TABLE public.replies ALTER COLUMN id ADD GENERATED ALWAYS AS IDENTITY (
+    SEQUENCE NAME public.replies_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1
+);
+
+
+--
+-- Name: likes_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+ALTER TABLE public.likes ALTER COLUMN id ADD GENERATED ALWAYS AS IDENTITY (
+    SEQUENCE NAME public.likes_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1
+);
+
+
+--
 -- Name: users users_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -234,6 +346,14 @@ ALTER TABLE ONLY public.users
 
 ALTER TABLE ONLY public.alumni
     ADD CONSTRAINT alumni_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: alumni alumni_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.alumni_profile
+    ADD CONSTRAINT alumni_profile_pkey PRIMARY KEY (id);
 
 
 --
@@ -277,6 +397,54 @@ ALTER TABLE ONLY public.answers
 
 
 --
+-- Name: forums forums_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.forums
+    ADD CONSTRAINT forums_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: replies replies_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.replies
+    ADD CONSTRAINT replies_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: likes likes_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.likes
+    ADD CONSTRAINT likes_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: alumni alumni_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.alumni
+    ADD CONSTRAINT alumni_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id) ON UPDATE CASCADE ON DELETE SET NULL;
+
+
+--
+-- Name: alumni alumni_profile_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.alumni_profile
+    ADD CONSTRAINT alumni_profile_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id) ON UPDATE CASCADE ON DELETE CASCADE;
+
+
+--
+-- Name: alumni alumni_profile_alumni_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.alumni_profile
+    ADD CONSTRAINT alumni_profile_alumni_id_fkey FOREIGN KEY (alumni_id) REFERENCES public.alumni(id) ON UPDATE CASCADE ON DELETE CASCADE;
+
+
+--
 -- Name: questions questions_form_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -316,15 +484,54 @@ ALTER TABLE ONLY public.answers
     ADD CONSTRAINT answers_question_id_fkey FOREIGN KEY (question_id) REFERENCES public.questions(id) ON UPDATE CASCADE ON DELETE CASCADE;
 
 
+--
+-- Name: forums forums_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.forums
+    ADD CONSTRAINT forums_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id) ON UPDATE CASCADE ON DELETE CASCADE;
+
+
+--
+-- Name: replies replies_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.replies
+    ADD CONSTRAINT replies_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id) ON UPDATE CASCADE ON DELETE CASCADE;
+
+
+--
+-- Name: replies replies_forum_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.replies
+    ADD CONSTRAINT replies_forum_id_fkey FOREIGN KEY (forum_id) REFERENCES public.forums(id) ON UPDATE CASCADE ON DELETE CASCADE;
+
+
+--
+-- Name: likes likes_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.likes
+    ADD CONSTRAINT likes_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id) ON UPDATE CASCADE ON DELETE CASCADE;
+
+
+--
+-- Name: likes likes_forum_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.likes
+    ADD CONSTRAINT likes_forum_id_fkey FOREIGN KEY (forum_id) REFERENCES public.forums(id) ON UPDATE CASCADE ON DELETE CASCADE;
+
 
 --
 -- Data for Name: alumni; Type: TABLE DATA; Schema: public; Owner: -
 --
 
-COPY public.alumni (id, name, date_of_birth, place_of_birth, gender, phone) FROM stdin;
-1	Ikram Zaidan	2002-07-20	Jakarta	M	081224939927
-2	Rayhan Ampurama	2003-03-07	Takalar	M	081123423323
-3	Alfatha Huga	2001-12-31	Klaten	M	098282828122
+COPY public.alumni (nisn, nis, name, gender, phone, graduation_year, class) FROM stdin;
+0023978634	1202204216	Ikram Zaidan	M	081224939927	2020	XII-MIPA-1
+0023978635	1202204217	Rayhan Ampurama	M	081123423323	2020	XII-MIPA-1
+0023978636	1202204218	Alfatha Huga	M	098282828122	2020	XII-MIPA-1
 \.
 
 
@@ -332,9 +539,9 @@ COPY public.alumni (id, name, date_of_birth, place_of_birth, gender, phone) FROM
 -- Data for Name: users; Type: TABLE DATA; Schema: public; Owner: -
 --
 
-COPY public.users (id, username, email, password, is_admin, created_at, updated_at) FROM stdin;
-1	admin	admin@gmail.com	$2a$12$qDysuB7aGhgtRCI08kP24OMVK3snloIpSRzhvbIBIusaGpdQ5vNIa	true	2022-09-23 00:00:00	2022-09-23 00:00:00
-2	ikramzaidann	ikramzaidan820@gmail.com	$2a$12$qDysuB7aGhgtRCI08kP24OMVK3snloIpSRzhvbIBIusaGpdQ5vNIa	false	2022-09-23 00:00:00	2022-09-23 00:00:00
+COPY public.users (username, email, password, is_admin, created_at, updated_at) FROM stdin;
+admin	admin@gmail.com	$2a$12$qDysuB7aGhgtRCI08kP24OMVK3snloIpSRzhvbIBIusaGpdQ5vNIa	true	2022-09-23 00:00:00	2022-09-23 00:00:00
+ikramzaidann	ikramzaidan820@gmail.com	$2a$12$qDysuB7aGhgtRCI08kP24OMVK3snloIpSRzhvbIBIusaGpdQ5vNIa	false	2022-09-23 00:00:00	2022-09-23 00:00:00
 \.
 
 
@@ -342,8 +549,8 @@ COPY public.users (id, username, email, password, is_admin, created_at, updated_
 -- Data for Name: articles; Type: TABLE DATA; Schema: public; Owner: -
 --
 
-COPY public.articles (id, title, slug, body, status, created_at, updated_at, published_at) FROM stdin;
-1	Kepala Sekolah Ganti	wawancara-aplikasi-alumni	<p style="text-align:justify;"><strong>Lorem Ipsum</strong> is simply dummy text of the printing and typesetting industry. Lorem Ipsum has been the industrys standard dummy text ever since the 1500s, when an unknown printer took a galley of type and scrambled it to make a type specimen book. It has survived not only five centuries, but also the leap into electronic typesetting, remaining essentially unchanged. It was popularised in the 1960s with the release of Letraset sheets containing Lorem Ipsum passages, and more recently with desktop publishing software like Aldus PageMaker including versions of Lorem Ipsum.</p><p style="text-align:justify;">&nbsp;</p><figure class="image"><img style="aspect-ratio:1200/1600;" src="http://localhost:8080/public/upload-3718730412.jpeg" width="1200" height="1600"></figure>	published	2022-09-23 00:00:00	2022-09-23 00:00:00	2022-09-23 00:00:00
+COPY public.articles (title, slug, body, status, created_at, updated_at, published_at) FROM stdin;
+Kepala Sekolah Ganti	wawancara-aplikasi-alumni	<p style="text-align:justify;"><strong>Lorem Ipsum</strong> is simply dummy text of the printing and typesetting industry. Lorem Ipsum has been the industrys standard dummy text ever since the 1500s, when an unknown printer took a galley of type and scrambled it to make a type specimen book. It has survived not only five centuries, but also the leap into electronic typesetting, remaining essentially unchanged. It was popularised in the 1960s with the release of Letraset sheets containing Lorem Ipsum passages, and more recently with desktop publishing software like Aldus PageMaker including versions of Lorem Ipsum.</p><p style="text-align:justify;">&nbsp;</p><figure class="image"><img style="aspect-ratio:1200/1600;" src="http://localhost:8080/public/upload-3718730412.jpeg" width="1200" height="1600"></figure>	published	2022-09-23 00:00:00	2022-09-23 00:00:00	2022-09-23 00:00:00
 \.
 
 

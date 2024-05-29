@@ -34,6 +34,7 @@ type TokenPairs struct {
 
 type Claims struct {
 	jwt.RegisteredClaims
+	IsAdmin bool `json:"adm,omitempty"`
 }
 
 func (j *Auth) GenerateTokenPair(user *jwtUser) (TokenPairs, error) {

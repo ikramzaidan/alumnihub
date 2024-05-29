@@ -2,6 +2,7 @@ package main
 
 import (
 	"alumnihub/internal/models"
+	"database/sql"
 	"errors"
 	"fmt"
 	"io"
@@ -14,6 +15,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/golang-jwt/jwt/v4"
+	"golang.org/x/crypto/bcrypt"
 )
 
 func (app *application) Home(w http.ResponseWriter, r *http.Request) {
@@ -53,6 +55,96 @@ func (app *application) Alumni(w http.ResponseWriter, r *http.Request) {
 	}
 
 	_ = app.writeJSON(w, http.StatusOK, course)
+}
+
+func (app *application) insertAlumni(w http.ResponseWriter, r *http.Request) {
+	var alumni models.Alumni
+
+	err := app.readJSON(w, r, &alumni)
+	if err != nil {
+		app.errorJSON(w, err)
+		return
+	}
+
+	err = app.DB.InsertAlumni(alumni)
+	if err != nil {
+		app.errorJSON(w, err)
+		return
+	}
+
+	message := "Alumni added"
+
+	resp := JSONResponse{
+		Error:   false,
+		Message: message,
+	}
+
+	app.writeJSON(w, http.StatusAccepted, resp)
+}
+
+func (app *application) updateAlumni(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	alumniID, err := strconv.Atoi(id)
+	if err != nil {
+		app.errorJSON(w, err)
+		return
+	}
+
+	var payload models.Alumni
+
+	err = app.readJSON(w, r, &payload)
+	if err != nil {
+		app.errorJSON(w, err)
+		return
+	}
+
+	alumni, err := app.DB.Alumni(alumniID)
+	if err != nil {
+		app.errorJSON(w, err)
+		return
+	}
+
+	alumni.Name = payload.Name
+	alumni.Gender = payload.Gender
+	alumni.Phone = payload.Phone
+	alumni.Year = payload.Year
+	alumni.Class = payload.Class
+	alumni.NISN = payload.NISN
+	alumni.NIS = payload.NIS
+
+	err = app.DB.UpdateAlumni(*alumni)
+	if err != nil {
+		app.errorJSON(w, err)
+		return
+	}
+
+	resp := JSONResponse{
+		Error:   false,
+		Message: "Alumni updated",
+	}
+
+	app.writeJSON(w, http.StatusAccepted, resp)
+}
+
+func (app *application) deleteAlumni(w http.ResponseWriter, r *http.Request) {
+	id, err := strconv.Atoi(chi.URLParam(r, "id"))
+	if err != nil {
+		app.errorJSON(w, err)
+		return
+	}
+
+	err = app.DB.DeleteAlumni(id)
+	if err != nil {
+		app.errorJSON(w, err)
+		return
+	}
+
+	resp := JSONResponse{
+		Error:   false,
+		Message: "Alumni deleted",
+	}
+
+	app.writeJSON(w, http.StatusAccepted, resp)
 }
 
 // //////////////////
@@ -230,23 +322,6 @@ func (app *application) showForm(w http.ResponseWriter, r *http.Request) {
 	_ = app.writeJSON(w, http.StatusOK, form)
 }
 
-func (app *application) showFormAnswers(w http.ResponseWriter, r *http.Request) {
-	id := chi.URLParam(r, "id")
-	formID, err := strconv.Atoi(id)
-	if err != nil {
-		app.errorJSON(w, err)
-		return
-	}
-
-	form, err := app.DB.ShowFormAnswers(formID)
-	if err != nil {
-		app.errorJSON(w, err)
-		return
-	}
-
-	_ = app.writeJSON(w, http.StatusOK, form)
-}
-
 func (app *application) insertForm(w http.ResponseWriter, r *http.Request) {
 	var form models.Form
 
@@ -395,6 +470,79 @@ func (app *application) insertQuestion(w http.ResponseWriter, r *http.Request) {
 	app.writeJSON(w, http.StatusAccepted, resp)
 }
 
+func (app *application) updateQuestion(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	questionID, err := strconv.Atoi(id)
+	if err != nil {
+		app.errorJSON(w, err)
+		return
+	}
+
+	var payload models.Question
+
+	err = app.readJSON(w, r, &payload)
+	if err != nil {
+		app.errorJSON(w, err)
+		return
+	}
+
+	if questionID != payload.ID {
+		app.errorJSON(w, errors.New("invalid request"), http.StatusBadRequest)
+		return
+	}
+
+	question, err := app.DB.Question(payload.ID)
+	if err != nil {
+		app.errorJSON(w, err)
+		return
+	}
+
+	question.Question = payload.Question
+	question.Type = payload.Type
+	question.UpdatedAt = time.Now()
+	question.ID = payload.ID
+	question.OptionsArray = payload.OptionsArray
+
+	err = app.DB.UpdateQuestion(*question)
+	if err != nil {
+		app.errorJSON(w, err)
+		return
+	}
+
+	// handle options when the type is multiple_choice
+	if question.Type == "multiple_choice" {
+		err = app.DB.UpdateQuestionOptions(payload.ID, question.OptionsArray)
+		if err != nil {
+			app.errorJSON(w, err)
+			return
+		}
+	}
+
+	resp := JSONResponse{
+		Error:   false,
+		Message: "Question updated",
+	}
+
+	app.writeJSON(w, http.StatusAccepted, resp)
+}
+
+func (app *application) showFormAnswers(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	formID, err := strconv.Atoi(id)
+	if err != nil {
+		app.errorJSON(w, err)
+		return
+	}
+
+	form, err := app.DB.ShowFormAnswers(formID)
+	if err != nil {
+		app.errorJSON(w, err)
+		return
+	}
+
+	_ = app.writeJSON(w, http.StatusOK, form)
+}
+
 func (app *application) insertAnswers(w http.ResponseWriter, r *http.Request) {
 	var answers []*models.Answer
 
@@ -475,6 +623,109 @@ func (app *application) serveImage(w http.ResponseWriter, r *http.Request) {
 	http.ServeFile(w, r, imageFile)
 }
 
+// Matching NISN before register
+func (app *application) registerCheck(w http.ResponseWriter, r *http.Request) {
+	var requestPayload struct {
+		NISN string `json:"nisn"`
+	}
+
+	err := app.readJSON(w, r, &requestPayload)
+	if err != nil {
+		app.errorJSON(w, err, http.StatusBadRequest)
+		return
+	}
+
+	// Validate
+	alumni, err := app.DB.GetAlumniByNISN(requestPayload.NISN)
+	if err != nil {
+		app.errorJSON(w, errors.New("nisn doesn't match any record"), http.StatusBadRequest)
+		return
+	}
+
+	if alumni.UserID.Valid {
+		resp := JSONResponse{
+			Error:   true,
+			Message: "Account already registered",
+		}
+
+		app.writeJSON(w, http.StatusBadRequest, resp)
+	} else {
+		app.writeJSON(w, http.StatusOK, alumni)
+	}
+
+}
+
+func (app *application) register(w http.ResponseWriter, r *http.Request) {
+	var payload struct {
+		Username string `json:"username"`
+		Email    string `json:"email"`
+		Password string `json:"password"`
+		AlumniID int    `json:"alumni_id"`
+	}
+
+	err := app.readJSON(w, r, &payload)
+	if err != nil {
+		app.errorJSON(w, err)
+		return
+	}
+
+	// Cek apakah alumni sudah terdaftar?
+	alumni, err := app.DB.Alumni(payload.AlumniID)
+	if err != nil {
+		app.errorJSON(w, err)
+		return
+	}
+
+	// Cek apakah alumni sudah mendaftar?
+	if alumni.UserID.Valid {
+		resp := JSONResponse{
+			Error:   true,
+			Message: "Account already registered",
+		}
+
+		app.writeJSON(w, http.StatusBadRequest, resp)
+	} else {
+
+		var user models.User
+
+		// Hash the password
+		hashedPassword, err := bcrypt.GenerateFromPassword([]byte(payload.Password), bcrypt.DefaultCost)
+		if err != nil {
+			app.errorJSON(w, err)
+			return
+		}
+
+		user.Username = payload.Username
+		user.Email = payload.Email
+		user.Password = string(hashedPassword)
+		user.IsAdmin = false
+		user.CreatedAt = time.Now()
+		user.UpdatedAt = time.Now()
+
+		userID, err := app.DB.InsertUser(user)
+		if err != nil {
+			app.errorJSON(w, err)
+			return
+		}
+
+		alumni.UserID = sql.NullInt64{Int64: int64(userID), Valid: true}
+
+		err = app.DB.UpdateAlumni(*alumni)
+		if err != nil {
+			_ = app.DB.DeleteUser(userID)
+			app.errorJSON(w, err)
+			return
+		}
+
+		resp := JSONResponse{
+			Error:   false,
+			Message: "Register success",
+		}
+
+		app.writeJSON(w, http.StatusAccepted, resp)
+	}
+}
+
 func (app *application) authenticate(w http.ResponseWriter, r *http.Request) {
 	// read JSON Payload
 	var requestPayload struct {
@@ -552,6 +803,7 @@ func (app *application) refreshToken(w http.ResponseWriter, r *http.Request) {
 			u := jwtUser{
 				ID:       user.ID,
 				Username: user.Username,
+				Role:     user.IsAdmin,
 			}
 
 			tokenPairs, err := app.auth.GenerateTokenPair(&u)

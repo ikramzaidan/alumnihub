@@ -21,7 +21,7 @@ func (m *PostgresDBRepo) AllAlumni() ([]*models.Alumni, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), dbTimeOut)
 	defer cancel()
 
-	query := `select id, name, date_of_birth, place_of_birth, gender, phone from alumni order by id`
+	query := `select id, nisn, nis, name, gender, phone, graduation_year, class from alumni order by id`
 
 	rows, err := m.DB.QueryContext(ctx, query)
 	if err != nil {
@@ -35,11 +35,13 @@ func (m *PostgresDBRepo) AllAlumni() ([]*models.Alumni, error) {
 		var alumni models.Alumni
 		err := rows.Scan(
 			&alumni.ID,
+			&alumni.NISN,
+			&alumni.NIS,
 			&alumni.Name,
-			&alumni.BirthDate,
-			&alumni.BirthPlace,
 			&alumni.Gender,
 			&alumni.Phone,
+			&alumni.Year,
+			&alumni.Class,
 		)
 		if err != nil {
 			return nil, err
@@ -56,7 +58,7 @@ func (m *PostgresDBRepo) Alumni(id int) (*models.Alumni, error) {
 	defer cancel()
 
 	query := `
-				SELECT id, name, date_of_birth, place_of_birth, gender, phone
+				SELECT id, nisn, nis, name, gender, phone, graduation_year, class, user_id
 				FROM alumni
 				WHERE id = $1
 			`
@@ -67,11 +69,14 @@ func (m *PostgresDBRepo) Alumni(id int) (*models.Alumni, error) {
 
 	err := row.Scan(
 		&alumni.ID,
+		&alumni.NISN,
+		&alumni.NIS,
 		&alumni.Name,
-		&alumni.BirthDate,
-		&alumni.BirthPlace,
 		&alumni.Gender,
 		&alumni.Phone,
+		&alumni.Year,
+		&alumni.Class,
+		&alumni.UserID,
 	)
 
 	if err != nil {
@@ -79,6 +84,137 @@ func (m *PostgresDBRepo) Alumni(id int) (*models.Alumni, error) {
 	}
 
 	return &alumni, nil
+}
+
+func (m *PostgresDBRepo) InsertAlumni(alumni models.Alumni) error {
+	ctx, cancel := context.WithTimeout(context.Background(), dbTimeOut)
+	defer cancel()
+
+	stmt := `insert into alumni (nisn, nis, name, gender, phone, graduation_year, class)
+			values ($1, $2, $3, $4, $5, $6, $7)`
+
+	_, err := m.DB.ExecContext(ctx, stmt,
+		alumni.NISN,
+		alumni.NIS,
+		alumni.Name,
+		alumni.Gender,
+		alumni.Phone,
+		alumni.Year,
+		alumni.Class,
+	)
+
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (m *PostgresDBRepo) UpdateAlumni(alumni models.Alumni) error {
+	ctx, cancel := context.WithTimeout(context.Background(), dbTimeOut)
+	defer cancel()
+
+	stmt := `update alumni set name = $1, gender = $2, phone = $3, graduation_year = $4, class = $5, nisn = $6, nis = $7, user_id = $8 
+			where id = $9`
+
+	_, err := m.DB.ExecContext(ctx, stmt,
+		alumni.Name,
+		alumni.Gender,
+		alumni.Phone,
+		alumni.Year,
+		alumni.Class,
+		alumni.NISN,
+		alumni.NIS,
+		alumni.UserID,
+		alumni.ID,
+	)
+
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (m *PostgresDBRepo) DeleteAlumni(id int) error {
+	ctx, cancel := context.WithTimeout(context.Background(), dbTimeOut)
+	defer cancel()
+
+	stmt := `delete from alumni where id = $1`
+
+	_, err := m.DB.ExecContext(ctx, stmt, id)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (m *PostgresDBRepo) GetAlumniByNISN(nisn string) (*models.Alumni, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), dbTimeOut)
+	defer cancel()
+
+	query := `select id, name, gender, phone, graduation_year, class, user_id 
+			from alumni where nisn = $1`
+
+	var alumni models.Alumni
+	row := m.DB.QueryRowContext(ctx, query, nisn)
+
+	err := row.Scan(
+		&alumni.ID,
+		&alumni.Name,
+		&alumni.Gender,
+		&alumni.Phone,
+		&alumni.Year,
+		&alumni.Class,
+		&alumni.UserID,
+	)
+
+	if err != nil {
+		return nil, err
+	}
+
+	return &alumni, nil
+
+}
+
+func (m *PostgresDBRepo) InsertUser(user models.User) (int, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), dbTimeOut)
+	defer cancel()
+
+	stmt := `insert into users (username, email, password, is_admin, created_at, updated_at)
+			values ($1, $2, $3, $4, $5, $6) returning id`
+
+	var userID int
+
+	err := m.DB.QueryRowContext(ctx, stmt,
+		user.Username,
+		user.Email,
+		user.Password,
+		user.IsAdmin,
+		user.CreatedAt,
+		user.UpdatedAt,
+	).Scan(&userID)
+
+	if err != nil {
+		return 0, err
+	}
+
+	return userID, nil
+}
+
+func (m *PostgresDBRepo) DeleteUser(id int) error {
+	ctx, cancel := context.WithTimeout(context.Background(), dbTimeOut)
+	defer cancel()
+
+	stmt := `delete from users where id = $1`
+
+	_, err := m.DB.ExecContext(ctx, stmt, id)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func (m *PostgresDBRepo) GetUserByEmail(email string) (*models.User, error) {
@@ -340,6 +476,7 @@ func (m *PostgresDBRepo) Form(id int) (*models.Form, error) {
 				SELECT id, question_text, type, created_at, updated_at
 				FROM questions
 				WHERE form_id = $1
+				ORDER BY id
 			`
 
 	rows, err := m.DB.QueryContext(ctx, query, id)
@@ -634,6 +771,7 @@ func (m *PostgresDBRepo) QuestionsByForm(id int) ([]*models.Question, error) {
 				SELECT id, form_id, question_text, type, created_at, updated_at
 				FROM questions
 				WHERE form_id = $1
+				ORDER BY id
 			`
 
 	rows, err := m.DB.QueryContext(ctx, query, id)
@@ -715,6 +853,27 @@ func (m *PostgresDBRepo) InsertQuestion(question models.Question) (int, error) {
 	}
 
 	return newID, nil
+}
+
+func (m *PostgresDBRepo) UpdateQuestion(question models.Question) error {
+	ctx, cancel := context.WithTimeout(context.Background(), dbTimeOut)
+	defer cancel()
+
+	stmt := `update questions set question_text = $1, type = $2, updated_at = $3
+				where id = $4`
+
+	_, err := m.DB.ExecContext(ctx, stmt,
+		question.Question,
+		question.Type,
+		question.UpdatedAt,
+		question.ID,
+	)
+
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func (m *PostgresDBRepo) UpdateQuestionOptions(id int, options []string) error {
