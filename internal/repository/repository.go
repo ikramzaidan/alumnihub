@@ -8,6 +8,11 @@ import (
 type DatabaseRepo interface {
 	Connection() *sql.DB
 
+	InsertUser(user models.User) (int, error)
+	DeleteUser(id int) error
+	GetUserByEmail(email string) (*models.User, error)
+	GetUserByID(id int) (*models.User, error)
+
 	AllAlumni() ([]*models.Alumni, error)
 	Alumni(id int) (*models.Alumni, error)
 	InsertAlumni(alumni models.Alumni) error
@@ -15,10 +20,8 @@ type DatabaseRepo interface {
 	DeleteAlumni(id int) error
 	GetAlumniByNISN(nisn string) (*models.Alumni, error)
 
-	InsertUser(user models.User) (int, error)
-	DeleteUser(id int) error
-	GetUserByEmail(email string) (*models.User, error)
-	GetUserByID(id int) (*models.User, error)
+	InsertProfile(profile models.Profile) (int, error)
+	GetProfileByAlumniID(id int) (*models.Profile, error)
 
 	AllArticles() ([]*models.Article, error)
 	Article(id int) (*models.Article, error)
@@ -41,4 +44,9 @@ type DatabaseRepo interface {
 	UpdateQuestionOptions(id int, options []string) error
 
 	InsertAnswers(answers []*models.Answer) error
+
+	AllForums() ([]*models.Forum, error)
+	Forum(id int) (*models.Forum, error)
+	InsertForum(forum models.Forum) (int, error)
+	InsertComment(comment models.Comment) (int, error)
 }

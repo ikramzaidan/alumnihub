@@ -566,6 +566,36 @@ func (app *application) insertAnswers(w http.ResponseWriter, r *http.Request) {
 	app.writeJSON(w, http.StatusAccepted, resp)
 }
 
+// //////////////////
+// Handler Forms
+// //////////////////
+func (app *application) allForums(w http.ResponseWriter, r *http.Request) {
+	forum, err := app.DB.AllForums()
+	if err != nil {
+		app.errorJSON(w, err)
+		return
+	}
+
+	_ = app.writeJSON(w, http.StatusOK, forum)
+}
+
+func (app *application) forum(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	forumID, err := strconv.Atoi(id)
+	if err != nil {
+		app.errorJSON(w, err)
+		return
+	}
+
+	form, err := app.DB.Forum(forumID)
+	if err != nil {
+		app.errorJSON(w, err)
+		return
+	}
+
+	_ = app.writeJSON(w, http.StatusOK, form)
+}
+
 func (app *application) uploadImage(w http.ResponseWriter, r *http.Request) {
 	// Parse multipart form data
 	err := r.ParseMultipartForm(10 << 20) // 10 MB max file size
@@ -635,23 +665,27 @@ func (app *application) registerCheck(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Validate
+	// Validate NISN
 	alumni, err := app.DB.GetAlumniByNISN(requestPayload.NISN)
 	if err != nil {
 		app.errorJSON(w, errors.New("nisn doesn't match any record"), http.StatusBadRequest)
 		return
 	}
 
-	if alumni.UserID.Valid {
-		resp := JSONResponse{
-			Error:   true,
-			Message: "Account already registered",
-		}
-
-		app.writeJSON(w, http.StatusBadRequest, resp)
-	} else {
-		app.writeJSON(w, http.StatusOK, alumni)
+	// Check if user already exist
+	_, err = app.DB.GetProfileByAlumniID(alumni.ID)
+	if err == nil {
+		app.errorJSON(w, errors.New("account already registered"), http.StatusBadRequest)
+		return
 	}
+
+	// if other error occured, return internal server error
+	if err != nil && err != sql.ErrNoRows {
+		app.errorJSON(w, errors.New("error checking profile"), http.StatusInternalServerError)
+		return
+	}
+
+	app.writeJSON(w, http.StatusOK, alumni)
 
 }
 
@@ -670,60 +704,52 @@ func (app *application) register(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Cek apakah alumni sudah terdaftar?
-	alumni, err := app.DB.Alumni(payload.AlumniID)
+	_, err = app.DB.GetProfileByAlumniID(payload.AlumniID)
+	if err == nil {
+		app.errorJSON(w, errors.New("account already registered"), http.StatusBadRequest)
+		return
+	}
+
+	var user models.User
+
+	// Hash the password
+	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(payload.Password), bcrypt.DefaultCost)
 	if err != nil {
 		app.errorJSON(w, err)
 		return
 	}
 
-	// Cek apakah alumni sudah mendaftar?
-	if alumni.UserID.Valid {
-		resp := JSONResponse{
-			Error:   true,
-			Message: "Account already registered",
-		}
+	user.Username = payload.Username
+	user.Email = payload.Email
+	user.Password = string(hashedPassword)
+	user.IsAdmin = false
+	user.CreatedAt = time.Now()
+	user.UpdatedAt = time.Now()
 
-		app.writeJSON(w, http.StatusBadRequest, resp)
-	} else {
-
-		var user models.User
-
-		// Hash the password
-		hashedPassword, err := bcrypt.GenerateFromPassword([]byte(payload.Password), bcrypt.DefaultCost)
-		if err != nil {
-			app.errorJSON(w, err)
-			return
-		}
-
-		user.Username = payload.Username
-		user.Email = payload.Email
-		user.Password = string(hashedPassword)
-		user.IsAdmin = false
-		user.CreatedAt = time.Now()
-		user.UpdatedAt = time.Now()
-
-		userID, err := app.DB.InsertUser(user)
-		if err != nil {
-			app.errorJSON(w, err)
-			return
-		}
-
-		alumni.UserID = sql.NullInt64{Int64: int64(userID), Valid: true}
-
-		err = app.DB.UpdateAlumni(*alumni)
-		if err != nil {
-			_ = app.DB.DeleteUser(userID)
-			app.errorJSON(w, err)
-			return
-		}
-
-		resp := JSONResponse{
-			Error:   false,
-			Message: "Register success",
-		}
-
-		app.writeJSON(w, http.StatusAccepted, resp)
+	userID, err := app.DB.InsertUser(user)
+	if err != nil {
+		app.errorJSON(w, err)
+		return
 	}
+
+	var profile models.Profile
+	profile.AlumniID = payload.AlumniID
+	profile.UserID = userID
+
+	_, err = app.DB.InsertProfile(profile)
+	if err != nil {
+		_ = app.DB.DeleteUser(userID)
+		app.errorJSON(w, err)
+		return
+	}
+
+	resp := JSONResponse{
+		Error:   false,
+		Message: "Register success",
+	}
+
+	app.writeJSON(w, http.StatusAccepted, resp)
+
 }
 
 func (app *application) authenticate(w http.ResponseWriter, r *http.Request) {

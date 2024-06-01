@@ -35,6 +35,9 @@ func (app *application) routes() http.Handler {
 		mux.Get("/forms/{id}/show", app.showForm)         // Get a complete form data with questions and options within the form
 		mux.Post("/forms/{id}/submit", app.insertAnswers) // Submit form answers
 
+		mux.Get("/forums", app.allForums) // Get all forum data
+		mux.Get("/forums/{id}", app.forum)
+
 		mux.Post("/upload_image", app.uploadImage)
 
 		// Routes untuk admin

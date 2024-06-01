@@ -421,14 +421,6 @@ ALTER TABLE ONLY public.likes
 
 
 --
--- Name: alumni alumni_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.alumni
-    ADD CONSTRAINT alumni_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id) ON UPDATE CASCADE ON DELETE SET NULL;
-
-
---
 -- Name: alumni alumni_profile_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
