@@ -47,8 +47,7 @@ CREATE TABLE public.alumni (
     gender character varying(1),
     phone character varying(16),
     graduation_year integer,
-    class character varying(32),
-    user_id integer UNIQUE DEFAULT NULL
+    class character varying(32)
 );
 
 

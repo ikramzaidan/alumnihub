@@ -10,6 +10,12 @@ import (
 	"github.com/golang-jwt/jwt/v4"
 )
 
+// Definisikan tipe kunci khusus untuk nilai dalam konteks
+type contextKey string
+
+// Definisikan tipe kunci khusus untuk nilai dalam konteks
+const userClaimsKey contextKey = "userClaims"
+
 type Auth struct {
 	Issuer        string
 	Audience      string

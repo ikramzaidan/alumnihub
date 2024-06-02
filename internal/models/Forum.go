@@ -11,6 +11,7 @@ type Forum struct {
 	PublishedAt   time.Time  `json:"published_at"`
 	Comments      []*Comment `json:"comments,omitempty"`
 	Likes         []*Like    `json:"likes,omitempty"`
+	UserUsername  string     `json:"user_username,omitempty"`
 	CommentsArray []int      `json:"comments_array,omitempty"`
 	LikesArray    []int      `json:"likes_array,omitempty"`
 }

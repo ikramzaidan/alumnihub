@@ -567,7 +567,7 @@ func (app *application) insertAnswers(w http.ResponseWriter, r *http.Request) {
 }
 
 // //////////////////
-// Handler Forms
+// Handler Forums
 // //////////////////
 func (app *application) allForums(w http.ResponseWriter, r *http.Request) {
 	forum, err := app.DB.AllForums()
@@ -594,6 +594,53 @@ func (app *application) forum(w http.ResponseWriter, r *http.Request) {
 	}
 
 	_ = app.writeJSON(w, http.StatusOK, form)
+}
+
+func (app *application) insertForum(w http.ResponseWriter, r *http.Request) {
+	var payload struct {
+		Forum string `json:"forum_text"`
+	}
+
+	err := app.readJSON(w, r, &payload)
+	if err != nil {
+		app.errorJSON(w, err)
+		return
+	}
+
+	// Ambil klaim dari konteks menggunakan tipe kunci khusus
+	claims, ok := r.Context().Value(userClaimsKey).(*Claims)
+	if !ok {
+		app.errorJSON(w, errors.New("no claims in context"))
+		return
+	}
+
+	// Konversi userID dari string ke int
+	userID, err := strconv.Atoi(claims.Subject)
+	if err != nil {
+		app.errorJSON(w, errors.New("invalid user ID in token"))
+		return
+	}
+
+	var forum models.Forum
+
+	forum.Forum = payload.Forum
+	forum.UserID = userID
+	forum.PublishedAt = time.Now()
+
+	newID, err := app.DB.InsertForum(forum)
+	if err != nil {
+		app.errorJSON(w, err)
+		return
+	}
+
+	message := fmt.Sprintf("Forum added to %d", newID)
+
+	resp := JSONResponse{
+		Error:   false,
+		Message: message,
+	}
+
+	app.writeJSON(w, http.StatusAccepted, resp)
 }
 
 func (app *application) uploadImage(w http.ResponseWriter, r *http.Request) {
@@ -700,6 +747,12 @@ func (app *application) register(w http.ResponseWriter, r *http.Request) {
 	err := app.readJSON(w, r, &payload)
 	if err != nil {
 		app.errorJSON(w, err)
+		return
+	}
+
+	// Validasi payload untuk nilai kosong
+	if payload.Username == "" || payload.Email == "" || payload.Password == "" || payload.AlumniID == 0 {
+		app.errorJSON(w, errors.New("all fields are required"), http.StatusBadRequest)
 		return
 	}
 

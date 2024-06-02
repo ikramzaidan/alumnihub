@@ -247,7 +247,7 @@ func (m *PostgresDBRepo) GetAlumniByNISN(nisn string) (*models.Alumni, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), dbTimeOut)
 	defer cancel()
 
-	query := `select id, name, gender, phone, graduation_year, class 
+	query := `select id, nisn, nis, name, gender, phone, graduation_year, class 
 			from alumni where nisn = $1`
 
 	var alumni models.Alumni
@@ -255,6 +255,8 @@ func (m *PostgresDBRepo) GetAlumniByNISN(nisn string) (*models.Alumni, error) {
 
 	err := row.Scan(
 		&alumni.ID,
+		&alumni.NISN,
+		&alumni.NIS,
 		&alumni.Name,
 		&alumni.Gender,
 		&alumni.Phone,
@@ -964,8 +966,10 @@ func (m *PostgresDBRepo) AllForums() ([]*models.Forum, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), dbTimeOut)
 	defer cancel()
 
-	query := `select id, forum_text, user_id, published_at 
-				from forums order by id DESC`
+	query := `SELECT f.id, f.forum_text, f.user_id, f.published_at, u.username
+				FROM forums f
+				LEFT JOIN users u ON f.user_id = u.id
+				ORDER BY f.id DESC`
 
 	rows, err := m.DB.QueryContext(ctx, query)
 	if err != nil {
@@ -982,6 +986,7 @@ func (m *PostgresDBRepo) AllForums() ([]*models.Forum, error) {
 			&forum.Forum,
 			&forum.UserID,
 			&forum.PublishedAt,
+			&forum.UserUsername,
 		)
 		if err != nil {
 			return nil, err
@@ -1056,13 +1061,12 @@ func (m *PostgresDBRepo) InsertForum(forum models.Forum) (int, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), dbTimeOut)
 	defer cancel()
 
-	stmt := `insert into forums (id, forum_text, user_id, published_at)
-			values ($1, $2, $3, $4) returning id`
+	stmt := `insert into forums (forum_text, user_id, published_at)
+			values ($1, $2, $3) returning id`
 
 	var newID int
 
 	err := m.DB.QueryRowContext(ctx, stmt,
-		forum.ID,
 		forum.Forum,
 		forum.UserID,
 		forum.PublishedAt,
