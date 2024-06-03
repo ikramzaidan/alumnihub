@@ -1102,3 +1102,23 @@ func (m *PostgresDBRepo) InsertComment(comment models.Comment) (int, error) {
 
 	return newID, nil
 }
+
+func (m *PostgresDBRepo) InsertLike(like models.Like) error {
+	ctx, cancel := context.WithTimeout(context.Background(), dbTimeOut)
+	defer cancel()
+
+	stmt := `insert into likes (forum_id, user_id, created_at)
+			values ($1, $2, $3)`
+
+	_, err := m.DB.ExecContext(ctx, stmt,
+		like.ForumID,
+		like.UserID,
+		like.CreatedAt,
+	)
+
+	if err != nil {
+		return err
+	}
+
+	return nil
+}

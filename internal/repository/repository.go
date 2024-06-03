@@ -49,4 +49,5 @@ type DatabaseRepo interface {
 	Forum(id int) (*models.Forum, error)
 	InsertForum(forum models.Forum) (int, error)
 	InsertComment(comment models.Comment) (int, error)
+	InsertLike(like models.Like) error
 }

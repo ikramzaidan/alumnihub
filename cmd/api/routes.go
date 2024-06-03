@@ -38,6 +38,7 @@ func (app *application) routes() http.Handler {
 		mux.Get("/forums", app.allForums) // Get all forum data
 		mux.Get("/forums/{id}", app.forum)
 		mux.Post("/forums/create", app.insertForum)
+		mux.Post("/forums/{id}/like", app.insertLike)
 
 		mux.Post("/upload_image", app.uploadImage)
 

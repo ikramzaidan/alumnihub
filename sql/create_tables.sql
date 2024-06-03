@@ -30,8 +30,8 @@ CREATE TABLE public.users (
     email character varying(255) UNIQUE,
     password character varying(255),
     is_admin boolean,
-    created_at timestamp without time zone,
-    updated_at timestamp without time zone
+    created_at timestamp,
+    updated_at timestamp
 );
 
 
@@ -148,7 +148,7 @@ CREATE TABLE public.forums (
     id integer NOT NULL,
     forum_text text,
     user_id integer NOT NULL,
-    published_at timestamp without time zone
+    published_at timestamp
 );
 
 
@@ -161,7 +161,7 @@ CREATE TABLE public.replies (
     forum_id integer NOT NULL,
     reply_text text,
     user_id integer NOT NULL,
-    published_at timestamp without time zone
+    published_at timestamp
 );
 
 
@@ -172,7 +172,8 @@ CREATE TABLE public.replies (
 CREATE TABLE public.likes (
     id integer NOT NULL,
     forum_id integer NOT NULL,
-    user_id integer NOT NULL
+    user_id integer NOT NULL,
+    created_at timestamp
 );
 
 

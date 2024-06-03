@@ -643,6 +643,48 @@ func (app *application) insertForum(w http.ResponseWriter, r *http.Request) {
 	app.writeJSON(w, http.StatusAccepted, resp)
 }
 
+func (app *application) insertLike(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	forumID, err := strconv.Atoi(id)
+	if err != nil {
+		app.errorJSON(w, err)
+		return
+	}
+
+	// Ambil klaim dari konteks menggunakan tipe kunci khusus
+	claims, ok := r.Context().Value(userClaimsKey).(*Claims)
+	if !ok {
+		app.errorJSON(w, errors.New("no claims in context"))
+		return
+	}
+
+	// Konversi userID dari string ke int
+	userID, err := strconv.Atoi(claims.Subject)
+	if err != nil {
+		app.errorJSON(w, errors.New("invalid user ID in token"))
+		return
+	}
+
+	var like models.Like
+
+	like.ForumID = forumID
+	like.UserID = userID
+	like.CreatedAt = time.Now()
+
+	err = app.DB.InsertLike(like)
+	if err != nil {
+		app.errorJSON(w, err)
+		return
+	}
+
+	resp := JSONResponse{
+		Error:   false,
+		Message: "Like success",
+	}
+
+	app.writeJSON(w, http.StatusAccepted, resp)
+}
+
 func (app *application) uploadImage(w http.ResponseWriter, r *http.Request) {
 	// Parse multipart form data
 	err := r.ParseMultipartForm(10 << 20) // 10 MB max file size
