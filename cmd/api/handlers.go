@@ -147,6 +147,38 @@ func (app *application) deleteAlumni(w http.ResponseWriter, r *http.Request) {
 	app.writeJSON(w, http.StatusAccepted, resp)
 }
 
+func (app *application) profile(w http.ResponseWriter, r *http.Request) {
+	// Ambil klaim dari konteks menggunakan tipe kunci khusus
+	claims, ok := r.Context().Value(userClaimsKey).(*Claims)
+	if !ok {
+		app.errorJSON(w, errors.New("no claims in context"))
+		return
+	}
+
+	// Konversi userID dari string ke int
+	userID, err := strconv.Atoi(claims.Subject)
+	if err != nil {
+		app.errorJSON(w, errors.New("invalid user ID in token"))
+		return
+	}
+
+	profile, err := app.DB.GetProfileByUserID(userID)
+	if err != nil {
+		app.errorJSON(w, err)
+		return
+	}
+
+	alumniName, err := app.DB.GetAlumniNameByID(profile.AlumniID)
+	if err != nil {
+		app.errorJSON(w, err)
+		return
+	}
+
+	profile.UserName = alumniName
+
+	app.writeJSON(w, http.StatusOK, profile)
+}
+
 // //////////////////
 // Handler Articles
 // //////////////////
@@ -570,13 +602,13 @@ func (app *application) insertAnswers(w http.ResponseWriter, r *http.Request) {
 // Handler Forums
 // //////////////////
 func (app *application) allForums(w http.ResponseWriter, r *http.Request) {
-	forum, err := app.DB.AllForums()
+	forums, err := app.DB.AllForums()
 	if err != nil {
 		app.errorJSON(w, err)
 		return
 	}
 
-	_ = app.writeJSON(w, http.StatusOK, forum)
+	_ = app.writeJSON(w, http.StatusOK, forums)
 }
 
 func (app *application) forum(w http.ResponseWriter, r *http.Request) {
@@ -643,6 +675,30 @@ func (app *application) insertForum(w http.ResponseWriter, r *http.Request) {
 	app.writeJSON(w, http.StatusAccepted, resp)
 }
 
+func (app *application) userLikes(w http.ResponseWriter, r *http.Request) {
+	// Ambil klaim dari konteks menggunakan tipe kunci khusus
+	claims, ok := r.Context().Value(userClaimsKey).(*Claims)
+	if !ok {
+		app.errorJSON(w, errors.New("no claims in context"))
+		return
+	}
+
+	// Konversi userID dari string ke int
+	userID, err := strconv.Atoi(claims.Subject)
+	if err != nil {
+		app.errorJSON(w, errors.New("invalid user ID in token"))
+		return
+	}
+
+	likes, err := app.DB.GetLikesByUser(userID)
+	if err != nil {
+		app.errorJSON(w, err)
+		return
+	}
+
+	_ = app.writeJSON(w, http.StatusOK, likes)
+}
+
 func (app *application) insertLike(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 	forumID, err := strconv.Atoi(id)
@@ -680,6 +736,42 @@ func (app *application) insertLike(w http.ResponseWriter, r *http.Request) {
 	resp := JSONResponse{
 		Error:   false,
 		Message: "Like success",
+	}
+
+	app.writeJSON(w, http.StatusAccepted, resp)
+}
+
+func (app *application) deleteLike(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	forumID, err := strconv.Atoi(id)
+	if err != nil {
+		app.errorJSON(w, err)
+		return
+	}
+
+	// Ambil klaim dari konteks menggunakan tipe kunci khusus
+	claims, ok := r.Context().Value(userClaimsKey).(*Claims)
+	if !ok {
+		app.errorJSON(w, errors.New("no claims in context"))
+		return
+	}
+
+	// Konversi userID dari string ke int
+	userID, err := strconv.Atoi(claims.Subject)
+	if err != nil {
+		app.errorJSON(w, errors.New("invalid user ID in token"))
+		return
+	}
+
+	err = app.DB.DeleteLike(userID, forumID)
+	if err != nil {
+		app.errorJSON(w, err)
+		return
+	}
+
+	resp := JSONResponse{
+		Error:   false,
+		Message: "Unlike success",
 	}
 
 	app.writeJSON(w, http.StatusAccepted, resp)

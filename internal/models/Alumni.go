@@ -15,6 +15,7 @@ type Profile struct {
 	ID        int    `json:"id"`
 	UserID    int    `json:"user_id,omitempty"`
 	AlumniID  int    `json:"alumni_id,omitempty"`
+	UserName  string `json:"user_name,omitempty"`
 	Bio       string `json:"bio,omitempty"`
 	Location  string `json:"location,omitempty"`
 	Facebook  string `json:"sm_facebook,omitempty"`

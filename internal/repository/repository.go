@@ -19,9 +19,11 @@ type DatabaseRepo interface {
 	UpdateAlumni(alumni models.Alumni) error
 	DeleteAlumni(id int) error
 	GetAlumniByNISN(nisn string) (*models.Alumni, error)
+	GetAlumniNameByID(id int) (string, error)
 
 	InsertProfile(profile models.Profile) (int, error)
 	GetProfileByAlumniID(id int) (*models.Profile, error)
+	GetProfileByUserID(id int) (*models.Profile, error)
 
 	AllArticles() ([]*models.Article, error)
 	Article(id int) (*models.Article, error)
@@ -49,5 +51,9 @@ type DatabaseRepo interface {
 	Forum(id int) (*models.Forum, error)
 	InsertForum(forum models.Forum) (int, error)
 	InsertComment(comment models.Comment) (int, error)
+	GetCommentsByForum(id int) ([]*models.Comment, error)
 	InsertLike(like models.Like) error
+	DeleteLike(userId int, forumId int) error
+	GetLikesByUser(id int) ([]*models.Like, error)
+	GetLikesByForum(id int) ([]*models.Like, error)
 }

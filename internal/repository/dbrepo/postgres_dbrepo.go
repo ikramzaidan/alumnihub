@@ -272,6 +272,26 @@ func (m *PostgresDBRepo) GetAlumniByNISN(nisn string) (*models.Alumni, error) {
 
 }
 
+func (m *PostgresDBRepo) GetAlumniNameByID(id int) (string, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), dbTimeOut)
+	defer cancel()
+
+	query := `select name from alumni where id = $1`
+
+	var alumni models.Alumni
+	row := m.DB.QueryRowContext(ctx, query, id)
+
+	err := row.Scan(
+		&alumni.Name,
+	)
+
+	if err != nil {
+		return "", err
+	}
+
+	return alumni.Name, nil
+}
+
 func (m *PostgresDBRepo) InsertProfile(profile models.Profile) (int, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), dbTimeOut)
 	defer cancel()
@@ -299,6 +319,30 @@ func (m *PostgresDBRepo) GetProfileByAlumniID(id int) (*models.Profile, error) {
 
 	query := `select id, alumni_id, user_id 
 			from alumni_profile where alumni_id = $1`
+
+	var profile models.Profile
+	row := m.DB.QueryRowContext(ctx, query, id)
+
+	err := row.Scan(
+		&profile.ID,
+		&profile.AlumniID,
+		&profile.UserID,
+	)
+
+	if err != nil {
+		return nil, err
+	}
+
+	return &profile, nil
+
+}
+
+func (m *PostgresDBRepo) GetProfileByUserID(id int) (*models.Profile, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), dbTimeOut)
+	defer cancel()
+
+	query := `select id, alumni_id, user_id 
+			from alumni_profile where user_id = $1`
 
 	var profile models.Profile
 	row := m.DB.QueryRowContext(ctx, query, id)
@@ -966,7 +1010,7 @@ func (m *PostgresDBRepo) AllForums() ([]*models.Forum, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), dbTimeOut)
 	defer cancel()
 
-	query := `SELECT f.id, f.forum_text, f.user_id, f.published_at, u.username
+	query := `SELECT f.id, f.forum_text, f.user_id, f.published_at, u.username, u.is_admin
 				FROM forums f
 				LEFT JOIN users u ON f.user_id = u.id
 				ORDER BY f.id DESC`
@@ -978,6 +1022,7 @@ func (m *PostgresDBRepo) AllForums() ([]*models.Forum, error) {
 	defer rows.Close()
 
 	var forums []*models.Forum
+	var isAdmin bool
 
 	for rows.Next() {
 		var forum models.Forum
@@ -987,9 +1032,19 @@ func (m *PostgresDBRepo) AllForums() ([]*models.Forum, error) {
 			&forum.UserID,
 			&forum.PublishedAt,
 			&forum.UserUsername,
+			isAdmin,
 		)
 		if err != nil {
 			return nil, err
+		}
+
+		if isAdmin == false {
+			name, err := m.GetAlumniNameByID(forum.UserID)
+			if err != nil {
+				return nil, err
+			}
+
+			forum.UserName = name
 		}
 
 		forums = append(forums, &forum)
@@ -1023,35 +1078,23 @@ func (m *PostgresDBRepo) Forum(id int) (*models.Forum, error) {
 		return nil, err
 	}
 
-	query = `
-				SELECT id, forum_id, user_id, reply_text, published_at
-				FROM replies
-				WHERE forum_id = $1
-			`
-
 	rows, err := m.DB.QueryContext(ctx, query, id)
 	if err != nil && err != sql.ErrNoRows {
 		return nil, err
 	}
 	defer rows.Close()
 
-	var comments []*models.Comment
-	for rows.Next() {
-		var comment models.Comment
-		err := rows.Scan(
-			&comment.ID,
-			&comment.ForumID,
-			&comment.UserID,
-			&comment.Comment,
-			&comment.PublishedAt,
-		)
-		if err != nil {
-			return nil, err
-		}
-
-		comments = append(comments, &comment)
+	comments, err := m.GetCommentsByForum(id)
+	if err != nil {
+		return nil, err
 	}
 
+	likes, err := m.GetLikesByForum(id)
+	if err != nil {
+		return nil, err
+	}
+
+	forum.Likes = likes
 	forum.Comments = comments
 
 	return &forum, nil
@@ -1103,6 +1146,43 @@ func (m *PostgresDBRepo) InsertComment(comment models.Comment) (int, error) {
 	return newID, nil
 }
 
+func (m *PostgresDBRepo) GetCommentsByForum(id int) ([]*models.Comment, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), dbTimeOut)
+	defer cancel()
+
+	query := `
+				SELECT id, forum_id, user_id, reply_text, published_at
+				FROM replies
+				WHERE forum_id = $1
+			`
+
+	rows, err := m.DB.QueryContext(ctx, query, id)
+	if err != nil && err != sql.ErrNoRows {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var comments []*models.Comment
+
+	for rows.Next() {
+		var comment models.Comment
+		err := rows.Scan(
+			&comment.ID,
+			&comment.ForumID,
+			&comment.UserID,
+			&comment.Comment,
+			&comment.PublishedAt,
+		)
+		if err != nil {
+			return nil, err
+		}
+
+		comments = append(comments, &comment)
+	}
+
+	return comments, nil
+}
+
 func (m *PostgresDBRepo) InsertLike(like models.Like) error {
 	ctx, cancel := context.WithTimeout(context.Background(), dbTimeOut)
 	defer cancel()
@@ -1121,4 +1201,90 @@ func (m *PostgresDBRepo) InsertLike(like models.Like) error {
 	}
 
 	return nil
+}
+
+func (m *PostgresDBRepo) DeleteLike(userId int, forumId int) error {
+	ctx, cancel := context.WithTimeout(context.Background(), dbTimeOut)
+	defer cancel()
+
+	stmt := `delete from likes where user_id = $1 and forum_id = $2`
+
+	_, err := m.DB.ExecContext(ctx, stmt, userId, forumId)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (m *PostgresDBRepo) GetLikesByUser(id int) ([]*models.Like, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), dbTimeOut)
+	defer cancel()
+
+	query := `
+				SELECT id, forum_id, user_id, created_at
+				FROM likes
+				WHERE user_id = $1
+			`
+
+	rows, err := m.DB.QueryContext(ctx, query, id)
+	if err != nil && err != sql.ErrNoRows {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var likes []*models.Like
+
+	for rows.Next() {
+		var like models.Like
+		err := rows.Scan(
+			&like.ID,
+			&like.ForumID,
+			&like.UserID,
+			&like.CreatedAt,
+		)
+		if err != nil {
+			return nil, err
+		}
+
+		likes = append(likes, &like)
+	}
+
+	return likes, nil
+}
+
+func (m *PostgresDBRepo) GetLikesByForum(id int) ([]*models.Like, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), dbTimeOut)
+	defer cancel()
+
+	query := `
+				SELECT id, forum_id, user_id, created_at
+				FROM likes
+				WHERE forum_id = $1
+			`
+
+	rows, err := m.DB.QueryContext(ctx, query, id)
+	if err != nil && err != sql.ErrNoRows {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var likes []*models.Like
+
+	for rows.Next() {
+		var like models.Like
+		err := rows.Scan(
+			&like.ID,
+			&like.ForumID,
+			&like.UserID,
+			&like.CreatedAt,
+		)
+		if err != nil {
+			return nil, err
+		}
+
+		likes = append(likes, &like)
+	}
+
+	return likes, nil
 }
