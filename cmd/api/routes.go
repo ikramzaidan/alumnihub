@@ -42,6 +42,7 @@ func (app *application) routes() http.Handler {
 		mux.Post("/forums/{id}/unlike", app.deleteLike)
 
 		mux.Get("/profile", app.profile)
+		mux.Patch("/profile/update", app.updateProfile)
 
 		mux.Get("/likes", app.userLikes)
 

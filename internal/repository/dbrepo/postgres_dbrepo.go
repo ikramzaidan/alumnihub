@@ -112,6 +112,26 @@ func (m *PostgresDBRepo) GetUserByID(id int) (*models.User, error) {
 
 }
 
+func (m *PostgresDBRepo) GetUserUsernameByID(id int) (string, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), dbTimeOut)
+	defer cancel()
+
+	query := `select username from users where id = $1`
+
+	var user models.User
+	row := m.DB.QueryRowContext(ctx, query, id)
+
+	err := row.Scan(
+		&user.Username,
+	)
+
+	if err != nil {
+		return "", err
+	}
+
+	return user.Username, nil
+}
+
 func (m *PostgresDBRepo) AllAlumni() ([]*models.Alumni, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), dbTimeOut)
 	defer cancel()
@@ -311,6 +331,30 @@ func (m *PostgresDBRepo) InsertProfile(profile models.Profile) (int, error) {
 	}
 
 	return userID, nil
+}
+
+func (m *PostgresDBRepo) UpdateProfile(profile models.Profile) error {
+	ctx, cancel := context.WithTimeout(context.Background(), dbTimeOut)
+	defer cancel()
+
+	stmt := `update alumni_profile set bio = $1, location = $2, sm_facebook = $3, sm_instagram = $4, sm_twitter = $5, sm_tiktok = $6
+			where user_id = $8`
+
+	_, err := m.DB.ExecContext(ctx, stmt,
+		profile.Bio,
+		profile.Location,
+		profile.Facebook,
+		profile.Instagram,
+		profile.Twitter,
+		profile.Tiktok,
+		profile.UserID,
+	)
+
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func (m *PostgresDBRepo) GetProfileByAlumniID(id int) (*models.Profile, error) {
@@ -1032,14 +1076,19 @@ func (m *PostgresDBRepo) AllForums() ([]*models.Forum, error) {
 			&forum.UserID,
 			&forum.PublishedAt,
 			&forum.UserUsername,
-			isAdmin,
+			&isAdmin,
 		)
 		if err != nil {
 			return nil, err
 		}
 
-		if isAdmin == false {
-			name, err := m.GetAlumniNameByID(forum.UserID)
+		if !isAdmin {
+			alumniID, err := m.GetProfileByUserID(forum.UserID)
+			if err != nil {
+				return nil, err
+			}
+
+			name, err := m.GetAlumniNameByID(alumniID.AlumniID)
 			if err != nil {
 				return nil, err
 			}

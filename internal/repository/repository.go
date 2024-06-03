@@ -12,6 +12,7 @@ type DatabaseRepo interface {
 	DeleteUser(id int) error
 	GetUserByEmail(email string) (*models.User, error)
 	GetUserByID(id int) (*models.User, error)
+	GetUserUsernameByID(id int) (string, error)
 
 	AllAlumni() ([]*models.Alumni, error)
 	Alumni(id int) (*models.Alumni, error)
@@ -22,6 +23,7 @@ type DatabaseRepo interface {
 	GetAlumniNameByID(id int) (string, error)
 
 	InsertProfile(profile models.Profile) (int, error)
+	UpdateProfile(profile models.Profile) error
 	GetProfileByAlumniID(id int) (*models.Profile, error)
 	GetProfileByUserID(id int) (*models.Profile, error)
 

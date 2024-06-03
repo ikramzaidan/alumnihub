@@ -174,9 +174,66 @@ func (app *application) profile(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	userUsername, err := app.DB.GetUserUsernameByID(userID)
+	if err != nil {
+		app.errorJSON(w, err)
+		return
+	}
+
 	profile.UserName = alumniName
+	profile.UserUsername = userUsername
 
 	app.writeJSON(w, http.StatusOK, profile)
+}
+
+func (app *application) updateProfile(w http.ResponseWriter, r *http.Request) {
+	// Ambil klaim dari konteks menggunakan tipe kunci khusus
+	claims, ok := r.Context().Value(userClaimsKey).(*Claims)
+	if !ok {
+		app.errorJSON(w, errors.New("no claims in context"))
+		return
+	}
+
+	// Konversi userID dari string ke int
+	userID, err := strconv.Atoi(claims.Subject)
+	if err != nil {
+		app.errorJSON(w, errors.New("invalid user ID in token"))
+		return
+	}
+
+	var payload models.Profile
+
+	err = app.readJSON(w, r, &payload)
+	if err != nil {
+		app.errorJSON(w, err)
+		return
+	}
+
+	profile, err := app.DB.GetProfileByUserID(userID)
+	if err != nil {
+		app.errorJSON(w, err)
+		return
+	}
+
+	profile.Bio = payload.Bio
+	profile.Location = payload.Location
+	profile.Facebook = payload.Facebook
+	profile.Instagram = payload.Instagram
+	profile.Twitter = payload.Twitter
+	profile.Tiktok = payload.Tiktok
+
+	err = app.DB.UpdateProfile(*profile)
+	if err != nil {
+		app.errorJSON(w, err)
+		return
+	}
+
+	resp := JSONResponse{
+		Error:   false,
+		Message: "Profile updated",
+	}
+
+	app.writeJSON(w, http.StatusAccepted, resp)
 }
 
 // //////////////////
