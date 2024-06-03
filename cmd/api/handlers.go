@@ -148,6 +148,39 @@ func (app *application) deleteAlumni(w http.ResponseWriter, r *http.Request) {
 }
 
 func (app *application) profile(w http.ResponseWriter, r *http.Request) {
+	username := chi.URLParam(r, "username")
+
+	userID, err := app.DB.GetUserIDByUsername(username)
+	if err != nil {
+		app.errorJSON(w, err)
+		return
+	}
+
+	profile, err := app.DB.GetProfileByUserID(userID)
+	if err != nil {
+		app.errorJSON(w, err)
+		return
+	}
+
+	alumniName, err := app.DB.GetAlumniNameByID(profile.AlumniID)
+	if err != nil {
+		app.errorJSON(w, err)
+		return
+	}
+
+	userUsername, err := app.DB.GetUserUsernameByID(userID)
+	if err != nil {
+		app.errorJSON(w, err)
+		return
+	}
+
+	profile.UserName = alumniName
+	profile.UserUsername = userUsername
+
+	app.writeJSON(w, http.StatusOK, profile)
+}
+
+func (app *application) myProfile(w http.ResponseWriter, r *http.Request) {
 	// Ambil klaim dari konteks menggunakan tipe kunci khusus
 	claims, ok := r.Context().Value(userClaimsKey).(*Claims)
 	if !ok {
@@ -727,6 +760,59 @@ func (app *application) insertForum(w http.ResponseWriter, r *http.Request) {
 	resp := JSONResponse{
 		Error:   false,
 		Message: message,
+	}
+
+	app.writeJSON(w, http.StatusAccepted, resp)
+}
+
+func (app *application) insertComment(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	forumID, err := strconv.Atoi(id)
+	if err != nil {
+		app.errorJSON(w, err)
+		return
+	}
+
+	var payload struct {
+		Comment string `json:"reply_text"`
+	}
+
+	err = app.readJSON(w, r, &payload)
+	if err != nil {
+		app.errorJSON(w, err)
+		return
+	}
+
+	// Ambil klaim dari konteks menggunakan tipe kunci khusus
+	claims, ok := r.Context().Value(userClaimsKey).(*Claims)
+	if !ok {
+		app.errorJSON(w, errors.New("no claims in context"))
+		return
+	}
+
+	// Konversi userID dari string ke int
+	userID, err := strconv.Atoi(claims.Subject)
+	if err != nil {
+		app.errorJSON(w, errors.New("invalid user ID in token"))
+		return
+	}
+
+	var comment models.Comment
+
+	comment.Comment = payload.Comment
+	comment.UserID = userID
+	comment.ForumID = forumID
+	comment.PublishedAt = time.Now()
+
+	_, err = app.DB.InsertComment(comment)
+	if err != nil {
+		app.errorJSON(w, err)
+		return
+	}
+
+	resp := JSONResponse{
+		Error:   false,
+		Message: "Comment added",
 	}
 
 	app.writeJSON(w, http.StatusAccepted, resp)

@@ -13,6 +13,7 @@ type DatabaseRepo interface {
 	GetUserByEmail(email string) (*models.User, error)
 	GetUserByID(id int) (*models.User, error)
 	GetUserUsernameByID(id int) (string, error)
+	GetUserIDByUsername(username string) (int, error)
 
 	AllAlumni() ([]*models.Alumni, error)
 	Alumni(id int) (*models.Alumni, error)

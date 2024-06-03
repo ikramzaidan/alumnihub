@@ -21,7 +21,7 @@ type Comment struct {
 	ID          int       `json:"id"`
 	ForumID     int       `json:"forum_id"`
 	UserID      int       `json:"user_id"`
-	Comment     string    `json:"comment_text"`
+	Comment     string    `json:"reply_text"`
 	PublishedAt time.Time `json:"published_at"`
 }
 

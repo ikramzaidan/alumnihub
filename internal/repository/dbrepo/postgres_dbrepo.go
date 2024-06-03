@@ -132,6 +132,26 @@ func (m *PostgresDBRepo) GetUserUsernameByID(id int) (string, error) {
 	return user.Username, nil
 }
 
+func (m *PostgresDBRepo) GetUserIDByUsername(username string) (int, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), dbTimeOut)
+	defer cancel()
+
+	query := `select id from users where username = $1`
+
+	var user models.User
+	row := m.DB.QueryRowContext(ctx, query, username)
+
+	err := row.Scan(
+		&user.ID,
+	)
+
+	if err != nil {
+		return 0, err
+	}
+
+	return user.ID, nil
+}
+
 func (m *PostgresDBRepo) AllAlumni() ([]*models.Alumni, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), dbTimeOut)
 	defer cancel()
@@ -338,7 +358,7 @@ func (m *PostgresDBRepo) UpdateProfile(profile models.Profile) error {
 	defer cancel()
 
 	stmt := `update alumni_profile set bio = $1, location = $2, sm_facebook = $3, sm_instagram = $4, sm_twitter = $5, sm_tiktok = $6
-			where user_id = $8`
+			where user_id = $7`
 
 	_, err := m.DB.ExecContext(ctx, stmt,
 		profile.Bio,
@@ -361,7 +381,13 @@ func (m *PostgresDBRepo) GetProfileByAlumniID(id int) (*models.Profile, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), dbTimeOut)
 	defer cancel()
 
-	query := `select id, alumni_id, user_id 
+	query := `select id, alumni_id, user_id,
+			COALESCE(bio, ''), 
+			COALESCE(location, ''), 
+			COALESCE(sm_facebook, ''), 
+			COALESCE(sm_instagram, ''), 
+			COALESCE(sm_twitter, ''), 
+			COALESCE(sm_tiktok, '')
 			from alumni_profile where alumni_id = $1`
 
 	var profile models.Profile
@@ -371,6 +397,12 @@ func (m *PostgresDBRepo) GetProfileByAlumniID(id int) (*models.Profile, error) {
 		&profile.ID,
 		&profile.AlumniID,
 		&profile.UserID,
+		&profile.Bio,
+		&profile.Location,
+		&profile.Facebook,
+		&profile.Instagram,
+		&profile.Twitter,
+		&profile.Tiktok,
 	)
 
 	if err != nil {
@@ -385,7 +417,13 @@ func (m *PostgresDBRepo) GetProfileByUserID(id int) (*models.Profile, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), dbTimeOut)
 	defer cancel()
 
-	query := `select id, alumni_id, user_id 
+	query := `select id, alumni_id, user_id, 
+			COALESCE(bio, ''), 
+			COALESCE(location, ''), 
+			COALESCE(sm_facebook, ''), 
+			COALESCE(sm_instagram, ''), 
+			COALESCE(sm_twitter, ''), 
+			COALESCE(sm_tiktok, '')
 			from alumni_profile where user_id = $1`
 
 	var profile models.Profile
@@ -395,6 +433,12 @@ func (m *PostgresDBRepo) GetProfileByUserID(id int) (*models.Profile, error) {
 		&profile.ID,
 		&profile.AlumniID,
 		&profile.UserID,
+		&profile.Bio,
+		&profile.Location,
+		&profile.Facebook,
+		&profile.Instagram,
+		&profile.Twitter,
+		&profile.Tiktok,
 	)
 
 	if err != nil {
