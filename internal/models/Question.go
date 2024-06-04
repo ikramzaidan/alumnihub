@@ -3,15 +3,16 @@ package models
 import "time"
 
 type Question struct {
-	ID           int       `json:"id"`
-	FormID       int       `json:"form_id"`
-	Question     string    `json:"question_text"`
-	Type         string    `json:"type"`
-	CreatedAt    time.Time `json:"created_at"`
-	UpdatedAt    time.Time `json:"updated_at"`
-	Options      []*Option `json:"options,omitempty"`
-	OptionsArray []string  `json:"options_array,omitempty"`
-	Answers      []*Answer `json:"answers,omitempty"`
+	ID           int            `json:"id"`
+	FormID       int            `json:"form_id"`
+	Question     string         `json:"question_text"`
+	Type         string         `json:"type"`
+	CreatedAt    time.Time      `json:"created_at"`
+	UpdatedAt    time.Time      `json:"updated_at"`
+	Options      []*Option      `json:"options,omitempty"`
+	OptionsArray []string       `json:"options_array,omitempty"`
+	Answers      []*Answer      `json:"answers,omitempty"`
+	GroupAnswer  []*GroupAnswer `json:"answers_group,omitempty"`
 }
 
 type Option struct {

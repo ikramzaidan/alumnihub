@@ -49,10 +49,14 @@ type DatabaseRepo interface {
 	UpdateQuestionOptions(id int, options []string) error
 
 	InsertAnswers(answers []*models.Answer) error
+	GroupAnswersByQuestion(forumID int, questionID int) ([]*models.GroupAnswer, error)
 
 	AllForums() ([]*models.Forum, error)
 	Forum(id int) (*models.Forum, error)
 	InsertForum(forum models.Forum) (int, error)
+	GetForumsByUser(id int) ([]*models.Forum, error)
+	GetForumLikesNumber(id int) (int, error)
+	GetForumCommentsNumber(id int) (int, error)
 	InsertComment(comment models.Comment) (int, error)
 	GetCommentsByForum(id int) ([]*models.Comment, error)
 	InsertLike(like models.Like) error

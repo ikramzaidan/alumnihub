@@ -37,6 +37,7 @@ func (app *application) routes() http.Handler {
 
 		mux.Get("/forums", app.allForums) // Get all forum data
 		mux.Get("/forums/{id}", app.forum)
+		mux.Get("/forums/user/{username}", app.allUserForums)
 		mux.Post("/forums/create", app.insertForum)
 		mux.Post("/forums/{id}/like", app.insertLike)
 		mux.Post("/forums/{id}/unlike", app.deleteLike)
@@ -66,6 +67,7 @@ func (app *application) routes() http.Handler {
 			mux.Patch("/forms/{id}", app.updateForm)
 			mux.Delete("/forms/{id}", app.deleteForm)
 			mux.Get("/forms/{id}/answers", app.showFormAnswers)
+			mux.Get("/forms/{fid}/questions/{qid}/answers", app.showQuestionAnswers)
 
 			mux.Get("/questions/{id}", app.question)
 			mux.Post("/questions/create", app.insertQuestion)

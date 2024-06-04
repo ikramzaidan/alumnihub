@@ -554,6 +554,14 @@ func (app *application) question(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	groupAnswers, err := app.DB.GroupAnswersByQuestion(question.FormID, qID)
+	if err != nil {
+		app.errorJSON(w, err)
+		return
+	}
+
+	question.GroupAnswer = groupAnswers
+
 	_ = app.writeJSON(w, http.StatusOK, question)
 }
 
@@ -688,11 +696,53 @@ func (app *application) insertAnswers(w http.ResponseWriter, r *http.Request) {
 	app.writeJSON(w, http.StatusAccepted, resp)
 }
 
+func (app *application) showQuestionAnswers(w http.ResponseWriter, r *http.Request) {
+	fID := chi.URLParam(r, "fid")
+	formID, err := strconv.Atoi(fID)
+	if err != nil {
+		app.errorJSON(w, err)
+		return
+	}
+
+	qID := chi.URLParam(r, "qid")
+	questionID, err := strconv.Atoi(qID)
+	if err != nil {
+		app.errorJSON(w, err)
+		return
+	}
+
+	groupAnswers, err := app.DB.GroupAnswersByQuestion(formID, questionID)
+	if err != nil {
+		app.errorJSON(w, err)
+		return
+	}
+
+	_ = app.writeJSON(w, http.StatusOK, groupAnswers)
+}
+
 // //////////////////
 // Handler Forums
 // //////////////////
 func (app *application) allForums(w http.ResponseWriter, r *http.Request) {
 	forums, err := app.DB.AllForums()
+	if err != nil {
+		app.errorJSON(w, err)
+		return
+	}
+
+	_ = app.writeJSON(w, http.StatusOK, forums)
+}
+
+func (app *application) allUserForums(w http.ResponseWriter, r *http.Request) {
+	username := chi.URLParam(r, "username")
+
+	userID, err := app.DB.GetUserIDByUsername(username)
+	if err != nil {
+		app.errorJSON(w, err)
+		return
+	}
+
+	forums, err := app.DB.GetForumsByUser(userID)
 	if err != nil {
 		app.errorJSON(w, err)
 		return
@@ -774,12 +824,18 @@ func (app *application) insertComment(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var payload struct {
+		ForumID int    `json:"forum_id"`
 		Comment string `json:"reply_text"`
 	}
 
 	err = app.readJSON(w, r, &payload)
 	if err != nil {
 		app.errorJSON(w, err)
+		return
+	}
+
+	if forumID != payload.ForumID {
+		app.errorJSON(w, errors.New("invalid request"), http.StatusBadRequest)
 		return
 	}
 
@@ -801,7 +857,7 @@ func (app *application) insertComment(w http.ResponseWriter, r *http.Request) {
 
 	comment.Comment = payload.Comment
 	comment.UserID = userID
-	comment.ForumID = forumID
+	comment.ForumID = payload.ForumID
 	comment.PublishedAt = time.Now()
 
 	_, err = app.DB.InsertComment(comment)

@@ -722,99 +722,6 @@ func (m *PostgresDBRepo) ShowForm(id int) (*models.Form, error) {
 	return &form, nil
 }
 
-func (m *PostgresDBRepo) ShowFormAnswers(id int) (*models.Form, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), dbTimeOut)
-	defer cancel()
-
-	query := `
-				SELECT id, title, description, has_time_limit, start_date, end_date, created_at, updated_at
-				FROM forms
-				WHERE id = $1
-			`
-
-	row := m.DB.QueryRowContext(ctx, query, id)
-
-	var form models.Form
-
-	err := row.Scan(
-		&form.ID,
-		&form.Title,
-		&form.Description,
-		&form.HasTimeLimit,
-		&form.StartDate,
-		&form.EndDate,
-		&form.CreatedAt,
-		&form.UpdatedAt,
-	)
-
-	if err != nil {
-		return nil, err
-	}
-
-	query = `
-				SELECT id, question_text, type, created_at, updated_at
-				FROM questions
-				WHERE form_id = $1
-			`
-
-	rows, err := m.DB.QueryContext(ctx, query, id)
-	if err != nil && err != sql.ErrNoRows {
-		return nil, err
-	}
-	defer rows.Close()
-
-	var questions []*models.Question
-	for rows.Next() {
-		var question models.Question
-		err := rows.Scan(
-			&question.ID,
-			&question.Question,
-			&question.Type,
-			&question.CreatedAt,
-			&question.UpdatedAt,
-		)
-		if err != nil {
-			return nil, err
-		}
-
-		// Get answers for each question
-		answerQuery := `
-				SELECT id, user_id, form_id, question_id, answer_text
-				FROM answers
-				WHERE question_id = $1
-			`
-		answerRows, err := m.DB.QueryContext(ctx, answerQuery, question.ID)
-		if err != nil && err != sql.ErrNoRows {
-			return nil, err
-		}
-		defer answerRows.Close()
-
-		var answers []*models.Answer
-		for answerRows.Next() {
-			var answer models.Answer
-			err := answerRows.Scan(
-				&answer.ID,
-				&answer.UserID,
-				&answer.FormID,
-				&answer.QuestionID,
-				&answer.Answer,
-			)
-			if err != nil {
-				return nil, err
-			}
-			answers = append(answers, &answer)
-		}
-
-		question.Answers = answers
-
-		questions = append(questions, &question)
-	}
-
-	form.Questions = questions
-
-	return &form, nil
-}
-
 func (m *PostgresDBRepo) InsertForm(form models.Form) (int, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), dbTimeOut)
 	defer cancel()
@@ -880,6 +787,80 @@ func (m *PostgresDBRepo) DeleteForm(id int) error {
 	return nil
 }
 
+func (m *PostgresDBRepo) ShowFormAnswers(id int) (*models.Form, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), dbTimeOut)
+	defer cancel()
+
+	query := `
+				SELECT id, title, description, has_time_limit, start_date, end_date, created_at, updated_at
+				FROM forms
+				WHERE id = $1
+			`
+
+	row := m.DB.QueryRowContext(ctx, query, id)
+
+	var form models.Form
+
+	err := row.Scan(
+		&form.ID,
+		&form.Title,
+		&form.Description,
+		&form.HasTimeLimit,
+		&form.StartDate,
+		&form.EndDate,
+		&form.CreatedAt,
+		&form.UpdatedAt,
+	)
+
+	if err != nil {
+		return nil, err
+	}
+
+	query = `
+				SELECT id, question_text, type, created_at, updated_at
+				FROM questions
+				WHERE form_id = $1
+			`
+
+	rows, err := m.DB.QueryContext(ctx, query, id)
+	if err != nil && err != sql.ErrNoRows {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var questions []*models.Question
+	for rows.Next() {
+		var question models.Question
+		err := rows.Scan(
+			&question.ID,
+			&question.Question,
+			&question.Type,
+			&question.CreatedAt,
+			&question.UpdatedAt,
+		)
+		if err != nil {
+			return nil, err
+		}
+
+		// Get answers for each question
+		answerGroups, err := m.GroupAnswersByQuestion(form.ID, question.ID)
+		if err != nil && err != sql.ErrNoRows {
+			return nil, err
+		}
+		if err == sql.ErrNoRows {
+			return nil, nil
+		}
+
+		question.GroupAnswer = answerGroups
+
+		questions = append(questions, &question)
+	}
+
+	form.Questions = questions
+
+	return &form, nil
+}
+
 func (m *PostgresDBRepo) Question(id int) (*models.Question, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), dbTimeOut)
 	defer cancel()
@@ -935,6 +916,37 @@ func (m *PostgresDBRepo) Question(id int) (*models.Question, error) {
 	}
 
 	question.Options = options
+
+	// Get answers for each question
+	answerQuery := `
+		SELECT id, user_id, form_id, question_id, answer_text
+		FROM answers
+		WHERE question_id = $1
+	`
+
+	answerRows, err := m.DB.QueryContext(ctx, answerQuery, question.ID)
+	if err != nil && err != sql.ErrNoRows {
+		return nil, err
+	}
+	defer answerRows.Close()
+
+	var answers []*models.Answer
+	for answerRows.Next() {
+		var answer models.Answer
+		err := answerRows.Scan(
+			&answer.ID,
+			&answer.UserID,
+			&answer.FormID,
+			&answer.QuestionID,
+			&answer.Answer,
+		)
+		if err != nil {
+			return nil, err
+		}
+		answers = append(answers, &answer)
+	}
+
+	question.Answers = answers
 
 	return &question, nil
 }
@@ -1094,6 +1106,41 @@ func (m *PostgresDBRepo) InsertAnswers(answers []*models.Answer) error {
 	return nil
 }
 
+func (m *PostgresDBRepo) GroupAnswersByQuestion(formID int, questionID int) ([]*models.GroupAnswer, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), dbTimeOut)
+	defer cancel()
+
+	query := `SELECT COUNT(id) as count_answers, answer_text, form_id, question_id
+				FROM answers
+				WHERE form_id = $1 AND question_id = $2
+				GROUP BY answer_text, form_id, question_id`
+
+	rows, err := m.DB.QueryContext(ctx, query, formID, questionID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var groupAnswers []*models.GroupAnswer
+
+	for rows.Next() {
+		var groupAnswer models.GroupAnswer
+		err := rows.Scan(
+			&groupAnswer.Count,
+			&groupAnswer.Answer,
+			&groupAnswer.FormID,
+			&groupAnswer.QuestionID,
+		)
+		if err != nil {
+			return nil, err
+		}
+
+		groupAnswers = append(groupAnswers, &groupAnswer)
+	}
+
+	return groupAnswers, nil
+}
+
 func (m *PostgresDBRepo) AllForums() ([]*models.Forum, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), dbTimeOut)
 	defer cancel()
@@ -1125,6 +1172,25 @@ func (m *PostgresDBRepo) AllForums() ([]*models.Forum, error) {
 		if err != nil {
 			return nil, err
 		}
+
+		likesNumber, err := m.GetForumLikesNumber(forum.ID)
+		if err != nil {
+			return nil, err
+		}
+
+		commentsNumber, err := m.GetForumCommentsNumber(forum.ID)
+		if err != nil {
+			return nil, err
+		}
+
+		comments, err := m.GetCommentsByForum(forum.ID)
+		if err != nil {
+			return nil, err
+		}
+
+		forum.LikesNumber = likesNumber
+		forum.CommentsNumber = commentsNumber
+		forum.Comments = comments
 
 		if !isAdmin {
 			alumniID, err := m.GetProfileByUserID(forum.UserID)
@@ -1171,12 +1237,6 @@ func (m *PostgresDBRepo) Forum(id int) (*models.Forum, error) {
 		return nil, err
 	}
 
-	rows, err := m.DB.QueryContext(ctx, query, id)
-	if err != nil && err != sql.ErrNoRows {
-		return nil, err
-	}
-	defer rows.Close()
-
 	comments, err := m.GetCommentsByForum(id)
 	if err != nil {
 		return nil, err
@@ -1191,6 +1251,119 @@ func (m *PostgresDBRepo) Forum(id int) (*models.Forum, error) {
 	forum.Comments = comments
 
 	return &forum, nil
+}
+
+func (m *PostgresDBRepo) GetForumsByUser(id int) ([]*models.Forum, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), dbTimeOut)
+	defer cancel()
+
+	query := `SELECT f.id, f.forum_text, f.user_id, f.published_at, u.username, u.is_admin
+				FROM forums f
+				LEFT JOIN users u ON f.user_id = u.id
+				WHERE u.id = $1
+				ORDER BY f.id DESC`
+
+	rows, err := m.DB.QueryContext(ctx, query, id)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var forums []*models.Forum
+	var isAdmin bool
+
+	for rows.Next() {
+		var forum models.Forum
+		err := rows.Scan(
+			&forum.ID,
+			&forum.Forum,
+			&forum.UserID,
+			&forum.PublishedAt,
+			&forum.UserUsername,
+			&isAdmin,
+		)
+		if err != nil {
+			return nil, err
+		}
+
+		if !isAdmin {
+			alumniID, err := m.GetProfileByUserID(forum.UserID)
+			if err != nil {
+				return nil, err
+			}
+
+			name, err := m.GetAlumniNameByID(alumniID.AlumniID)
+			if err != nil {
+				return nil, err
+			}
+
+			forum.UserName = name
+		}
+
+		forums = append(forums, &forum)
+	}
+
+	return forums, nil
+}
+
+func (m *PostgresDBRepo) GetForumLikesNumber(id int) (int, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), dbTimeOut)
+	defer cancel()
+
+	query := `
+				SELECT COUNT(id) as count_likes
+				FROM likes
+				WHERE forum_id = $1
+			`
+
+	row := m.DB.QueryRowContext(ctx, query, id)
+
+	var likesNumber int
+
+	err := row.Scan(
+		&likesNumber,
+	)
+
+	if err != nil && err != sql.ErrNoRows {
+		return 0, err
+	}
+
+	if err == sql.ErrNoRows {
+		return 0, nil
+	}
+
+	return likesNumber, nil
+
+}
+
+func (m *PostgresDBRepo) GetForumCommentsNumber(id int) (int, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), dbTimeOut)
+	defer cancel()
+
+	query := `
+				SELECT COUNT(id) as count_replies
+				FROM replies
+				WHERE forum_id = $1
+			`
+
+	row := m.DB.QueryRowContext(ctx, query, id)
+
+	var commentsNumber int
+
+	err := row.Scan(
+		&commentsNumber,
+	)
+
+	if err != nil && err != sql.ErrNoRows {
+		return 0, err
+	}
+
+	if err == sql.ErrNoRows {
+		return 0, nil
+	}
+
+	return commentsNumber, nil
+
 }
 
 func (m *PostgresDBRepo) InsertForum(forum models.Forum) (int, error) {
@@ -1219,13 +1392,12 @@ func (m *PostgresDBRepo) InsertComment(comment models.Comment) (int, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), dbTimeOut)
 	defer cancel()
 
-	stmt := `insert into replies (id, forum_id, user_id, reply_text, published_at)
-			values ($1, $2, $3, $4, $5) returning id`
+	stmt := `insert into replies (forum_id, user_id, reply_text, published_at)
+			values ($1, $2, $3, $4) returning id`
 
 	var newID int
 
 	err := m.DB.QueryRowContext(ctx, stmt,
-		comment.ID,
 		comment.ForumID,
 		comment.UserID,
 		comment.Comment,
@@ -1269,6 +1441,29 @@ func (m *PostgresDBRepo) GetCommentsByForum(id int) ([]*models.Comment, error) {
 		if err != nil {
 			return nil, err
 		}
+
+		user, err := m.GetUserByID(comment.UserID)
+		if err != nil {
+			return nil, err
+		}
+
+		if !user.IsAdmin {
+			profile, err := m.GetProfileByUserID(comment.UserID)
+			if err != nil {
+				return nil, err
+			}
+
+			name, err := m.GetAlumniNameByID(profile.AlumniID)
+			if err != nil {
+				return nil, err
+			}
+
+			comment.UserName = name
+		} else {
+			comment.UserName = ""
+		}
+
+		comment.UserUsername = user.Username
 
 		comments = append(comments, &comment)
 	}

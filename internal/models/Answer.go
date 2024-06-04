@@ -7,3 +7,10 @@ type Answer struct {
 	QuestionID int    `json:"question_id"`
 	Answer     string `json:"answer_text"`
 }
+
+type GroupAnswer struct {
+	FormID     int    `json:"form_id"`
+	QuestionID int    `json:"question_id"`
+	Answer     string `json:"answer_text"`
+	Count      int    `json:"answer_count"`
+}
