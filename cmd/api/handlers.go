@@ -308,6 +308,13 @@ func (app *application) insertArticle(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	imgSrc, err := app.getFirstImageFromHtml(article.Body)
+	if err != nil {
+		app.errorJSON(w, err)
+		return
+	}
+
+	article.Image = imgSrc
 	article.CreatedAt = time.Now()
 	article.UpdatedAt = time.Now()
 	article.PublishedAt = time.Now()
@@ -355,12 +362,21 @@ func (app *application) updateArticle(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	imgSrc, err := app.getFirstImageFromHtml(payload.Body)
+	if err != nil {
+		app.errorJSON(w, err)
+		return
+	}
+
+	article.Image = imgSrc
 	article.Title = payload.Title
 	article.Slug = payload.Slug
 	article.Body = payload.Body
 	article.Status = payload.Status
 	article.UpdatedAt = time.Now()
-	article.PublishedAt = time.Now()
+	if article.Status != "published" && payload.Status == "published" {
+		article.PublishedAt = time.Now()
+	}
 
 	err = app.DB.UpdateArticle(*article)
 	if err != nil {
