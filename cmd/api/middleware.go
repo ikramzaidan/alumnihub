@@ -44,7 +44,7 @@ func (app *application) adminRequired(next http.Handler) http.Handler {
 		}
 
 		if !claims.IsAdmin {
-			w.WriteHeader(http.StatusUnauthorized)
+			w.WriteHeader(http.StatusForbidden)
 			return
 		}
 

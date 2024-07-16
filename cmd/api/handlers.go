@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -15,6 +16,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/golang-jwt/jwt/v4"
+	"github.com/xuri/excelize/v2"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -25,6 +27,40 @@ func (app *application) Home(w http.ResponseWriter, r *http.Request) {
 	}{
 		Status:  "active",
 		Message: "Alumnihub",
+	}
+
+	_ = app.writeJSON(w, http.StatusOK, payload)
+}
+
+func (app *application) Dashboard(w http.ResponseWriter, r *http.Request) {
+	type Payload struct {
+		CountAlumni        int               `json:"count_alumni"`
+		CountAlumniAccount int               `json:"count_alumni_account"`
+		Profiles           []*models.Profile `json:"profiles,omitempty"`
+	}
+
+	countAlumni, err := app.DB.CountAlumni()
+	if err != nil {
+		app.errorJSON(w, err)
+		return
+	}
+
+	countAlumniAccount, err := app.DB.CountAlumniAccount()
+	if err != nil {
+		app.errorJSON(w, err)
+		return
+	}
+
+	profiles, err := app.DB.GetProfiles()
+	if err != nil {
+		app.errorJSON(w, err)
+		return
+	}
+
+	payload := Payload{
+		CountAlumni:        countAlumni,
+		CountAlumniAccount: countAlumniAccount,
+		Profiles:           profiles,
 	}
 
 	_ = app.writeJSON(w, http.StatusOK, payload)
@@ -48,13 +84,29 @@ func (app *application) Alumni(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	course, err := app.DB.Alumni(alumniID)
+	alumni, err := app.DB.Alumni(alumniID)
 	if err != nil {
 		app.errorJSON(w, err)
 		return
 	}
 
-	_ = app.writeJSON(w, http.StatusOK, course)
+	profile, err := app.DB.GetProfileByAlumniID(alumniID)
+	if err != nil && err != sql.ErrNoRows {
+		app.errorJSON(w, err)
+		return
+	}
+
+	if profile != nil {
+		user, err := app.DB.GetUserByID(profile.UserID)
+		if err != nil {
+			app.errorJSON(w, err)
+			return
+		}
+
+		alumni.UserUsername = user.Username
+	}
+
+	_ = app.writeJSON(w, http.StatusOK, alumni)
 }
 
 func (app *application) insertAlumni(w http.ResponseWriter, r *http.Request) {
@@ -72,14 +124,91 @@ func (app *application) insertAlumni(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	message := "Alumni added"
+	message := "New alumni has been successfully added"
 
 	resp := JSONResponse{
 		Error:   false,
 		Message: message,
 	}
 
-	app.writeJSON(w, http.StatusAccepted, resp)
+	app.writeJSON(w, http.StatusCreated, resp)
+}
+
+func (app *application) importAlumni(w http.ResponseWriter, r *http.Request) {
+	file, _, err := r.FormFile("file")
+	if err != nil {
+		app.errorJSON(w, err)
+		return
+	}
+	defer file.Close()
+
+	// Read the Excel file
+	f, err := excelize.OpenReader(file)
+	if err != nil {
+		app.errorJSON(w, err)
+		return
+	}
+
+	rows, err := f.GetRows("Sheet1") // Assuming data is in Sheet1
+	if err != nil {
+		app.errorJSON(w, err)
+		return
+	}
+
+	var alumniList []models.Alumni
+
+	for _, row := range rows[1:] { // Skipping header row
+		year, err := strconv.Atoi(row[5])
+		if err != nil {
+			log.Printf("Skipping row due to invalid graduation year: %v", row)
+			continue
+		}
+
+		alumni := models.Alumni{
+			NISN:   row[0],
+			NIS:    row[1],
+			Name:   row[2],
+			Gender: row[3],
+			Phone:  row[4],
+			Year:   year,
+			Class:  row[6],
+		}
+
+		alumniList = append(alumniList, alumni)
+	}
+
+	app.writeJSON(w, http.StatusAccepted, alumniList)
+}
+
+func (app *application) insertImportAlumni(w http.ResponseWriter, r *http.Request) {
+	var alumniList []models.Alumni
+
+	err := app.readJSON(w, r, &alumniList)
+	if err != nil {
+		app.errorJSON(w, err)
+		return
+	}
+
+	count := 0
+
+	for _, alumni := range alumniList {
+		err = app.DB.InsertAlumni(alumni)
+		if err != nil {
+			app.errorJSON(w, err)
+			return
+		}
+
+		count++
+	}
+
+	message := fmt.Sprintf("%d alumni berhasil ditambahkan", count)
+
+	resp := JSONResponse{
+		Error:   false,
+		Message: message,
+	}
+
+	app.writeJSON(w, http.StatusCreated, resp)
 }
 
 func (app *application) updateAlumni(w http.ResponseWriter, r *http.Request) {
@@ -120,10 +249,10 @@ func (app *application) updateAlumni(w http.ResponseWriter, r *http.Request) {
 
 	resp := JSONResponse{
 		Error:   false,
-		Message: "Alumni updated",
+		Message: "Alumni has been successfully updated",
 	}
 
-	app.writeJSON(w, http.StatusAccepted, resp)
+	app.writeJSON(w, http.StatusOK, resp)
 }
 
 func (app *application) deleteAlumni(w http.ResponseWriter, r *http.Request) {
@@ -141,10 +270,10 @@ func (app *application) deleteAlumni(w http.ResponseWriter, r *http.Request) {
 
 	resp := JSONResponse{
 		Error:   false,
-		Message: "Alumni deleted",
+		Message: "Alumni has been permanently deleted",
 	}
 
-	app.writeJSON(w, http.StatusAccepted, resp)
+	app.writeJSON(w, http.StatusOK, resp)
 }
 
 func (app *application) profile(w http.ResponseWriter, r *http.Request) {
@@ -174,8 +303,15 @@ func (app *application) profile(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	userPhoto, err := app.DB.GetUserPhotoByID(userID)
+	if err != nil {
+		app.errorJSON(w, err)
+		return
+	}
+
 	profile.UserName = alumniName
 	profile.UserUsername = userUsername
+	profile.Photo = userPhoto
 
 	app.writeJSON(w, http.StatusOK, profile)
 }
@@ -195,16 +331,31 @@ func (app *application) myProfile(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	profile, err := app.DB.GetProfileByUserID(userID)
-	if err != nil {
-		app.errorJSON(w, err)
-		return
-	}
+	var profile models.Profile
 
-	alumniName, err := app.DB.GetAlumniNameByID(profile.AlumniID)
-	if err != nil {
-		app.errorJSON(w, err)
-		return
+	if !claims.IsAdmin {
+		profileAlumni, err := app.DB.GetProfileByUserID(userID)
+		if err != nil {
+			app.errorJSON(w, err)
+			return
+		}
+
+		alumniName, err := app.DB.GetAlumniNameByID(profileAlumni.AlumniID)
+		if err != nil {
+			app.errorJSON(w, err)
+			return
+		}
+
+		profile = *profileAlumni
+		profile.UserName = alumniName
+	} else {
+		profileAdmin, err := app.DB.GetAdminProfileByUserID(userID)
+		if err != nil {
+			app.errorJSON(w, err)
+			return
+		}
+
+		profile = *profileAdmin
 	}
 
 	userUsername, err := app.DB.GetUserUsernameByID(userID)
@@ -213,8 +364,14 @@ func (app *application) myProfile(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	profile.UserName = alumniName
+	userPhoto, err := app.DB.GetUserPhotoByID(userID)
+	if err != nil {
+		app.errorJSON(w, err)
+		return
+	}
+
 	profile.UserUsername = userUsername
+	profile.Photo = userPhoto
 
 	app.writeJSON(w, http.StatusOK, profile)
 }
@@ -254,6 +411,7 @@ func (app *application) updateProfile(w http.ResponseWriter, r *http.Request) {
 	profile.Instagram = payload.Instagram
 	profile.Twitter = payload.Twitter
 	profile.Tiktok = payload.Tiktok
+	profile.Photo = payload.Photo
 
 	err = app.DB.UpdateProfile(*profile)
 	if err != nil {
@@ -266,7 +424,7 @@ func (app *application) updateProfile(w http.ResponseWriter, r *http.Request) {
 		Message: "Profile updated",
 	}
 
-	app.writeJSON(w, http.StatusAccepted, resp)
+	app.writeJSON(w, http.StatusOK, resp)
 }
 
 // //////////////////
@@ -283,14 +441,26 @@ func (app *application) allArticles(w http.ResponseWriter, r *http.Request) {
 }
 
 func (app *application) article(w http.ResponseWriter, r *http.Request) {
-	id := chi.URLParam(r, "id")
-	articleID, err := strconv.Atoi(id)
+	slug := chi.URLParam(r, "slug")
+
+	article, err := app.DB.ArticleBySlug(slug)
 	if err != nil {
 		app.errorJSON(w, err)
 		return
 	}
 
-	article, err := app.DB.Article(articleID)
+	_ = app.writeJSON(w, http.StatusOK, article)
+}
+
+func (app *application) showArticle(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	articleId, err := strconv.Atoi(id)
+	if err != nil {
+		app.errorJSON(w, err)
+		return
+	}
+
+	article, err := app.DB.Article(articleId)
 	if err != nil {
 		app.errorJSON(w, err)
 		return
@@ -314,25 +484,25 @@ func (app *application) insertArticle(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	article.Image = imgSrc
-	article.CreatedAt = time.Now()
-	article.UpdatedAt = time.Now()
-	article.PublishedAt = time.Now()
+	loc, _ := time.LoadLocation("Asia/Jakarta")
 
-	newID, err := app.DB.InsertArticle(article)
+	article.Image = imgSrc
+	article.CreatedAt = time.Now().In(loc)
+	article.UpdatedAt = time.Now().In(loc)
+	article.PublishedAt = time.Now().In(loc)
+
+	_, err = app.DB.InsertArticle(article)
 	if err != nil {
 		app.errorJSON(w, err)
 		return
 	}
 
-	message := fmt.Sprintf("Article added to %d", newID)
-
 	resp := JSONResponse{
 		Error:   false,
-		Message: message,
+		Message: "New article has been successfully created",
 	}
 
-	app.writeJSON(w, http.StatusAccepted, resp)
+	app.writeJSON(w, http.StatusCreated, resp)
 }
 
 func (app *application) updateArticle(w http.ResponseWriter, r *http.Request) {
@@ -352,7 +522,7 @@ func (app *application) updateArticle(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if articleID != payload.ID {
-		app.errorJSON(w, errors.New("invalid request"), http.StatusBadRequest)
+		app.errorJSON(w, errors.New("invalid request"))
 		return
 	}
 
@@ -386,10 +556,10 @@ func (app *application) updateArticle(w http.ResponseWriter, r *http.Request) {
 
 	resp := JSONResponse{
 		Error:   false,
-		Message: "article updated",
+		Message: "Article has been successfully updated",
 	}
 
-	app.writeJSON(w, http.StatusAccepted, resp)
+	app.writeJSON(w, http.StatusOK, resp)
 }
 
 func (app *application) deleteArticle(w http.ResponseWriter, r *http.Request) {
@@ -407,10 +577,10 @@ func (app *application) deleteArticle(w http.ResponseWriter, r *http.Request) {
 
 	resp := JSONResponse{
 		Error:   false,
-		Message: "Article deleted",
+		Message: "Article has been permanently deleted",
 	}
 
-	app.writeJSON(w, http.StatusAccepted, resp)
+	app.writeJSON(w, http.StatusOK, resp)
 }
 
 // //////////////////
@@ -472,20 +642,18 @@ func (app *application) insertForm(w http.ResponseWriter, r *http.Request) {
 	form.CreatedAt = time.Now()
 	form.UpdatedAt = time.Now()
 
-	newID, err := app.DB.InsertForm(form)
+	_, err = app.DB.InsertForm(form)
 	if err != nil {
 		app.errorJSON(w, err)
 		return
 	}
 
-	message := fmt.Sprintf("Form added to %d", newID)
-
 	resp := JSONResponse{
 		Error:   false,
-		Message: message,
+		Message: "New survey has been successfully created",
 	}
 
-	app.writeJSON(w, http.StatusAccepted, resp)
+	app.writeJSON(w, http.StatusCreated, resp)
 }
 
 func (app *application) updateForm(w http.ResponseWriter, r *http.Request) {
@@ -529,10 +697,10 @@ func (app *application) updateForm(w http.ResponseWriter, r *http.Request) {
 
 	resp := JSONResponse{
 		Error:   false,
-		Message: "article updated",
+		Message: "Survey has been successfully updated",
 	}
 
-	app.writeJSON(w, http.StatusAccepted, resp)
+	app.writeJSON(w, http.StatusOK, resp)
 }
 
 func (app *application) deleteForm(w http.ResponseWriter, r *http.Request) {
@@ -550,10 +718,10 @@ func (app *application) deleteForm(w http.ResponseWriter, r *http.Request) {
 
 	resp := JSONResponse{
 		Error:   false,
-		Message: "Form deleted",
+		Message: "Survey has been permanently deleted",
 	}
 
-	app.writeJSON(w, http.StatusAccepted, resp)
+	app.writeJSON(w, http.StatusOK, resp)
 }
 
 func (app *application) question(w http.ResponseWriter, r *http.Request) {
@@ -610,10 +778,10 @@ func (app *application) insertQuestion(w http.ResponseWriter, r *http.Request) {
 
 	resp := JSONResponse{
 		Error:   false,
-		Message: "Question added",
+		Message: "Question has been successfully created",
 	}
 
-	app.writeJSON(w, http.StatusAccepted, resp)
+	app.writeJSON(w, http.StatusCreated, resp)
 }
 
 func (app *application) updateQuestion(w http.ResponseWriter, r *http.Request) {
@@ -645,6 +813,7 @@ func (app *application) updateQuestion(w http.ResponseWriter, r *http.Request) {
 
 	question.Question = payload.Question
 	question.Type = payload.Type
+	question.Extension = payload.Extension
 	question.UpdatedAt = time.Now()
 	question.ID = payload.ID
 	question.OptionsArray = payload.OptionsArray
@@ -662,14 +831,55 @@ func (app *application) updateQuestion(w http.ResponseWriter, r *http.Request) {
 			app.errorJSON(w, err)
 			return
 		}
+	} else {
+		err = app.DB.DeleteQuestionOptions(payload.ID)
+		if err != nil {
+			app.errorJSON(w, err)
+			return
+		}
+	}
+
+	if question.Extension && payload.QuestionExtension != nil {
+		err = app.DB.UpdateQuestionExtension(payload.QuestionExtension)
+		if err != nil {
+			app.errorJSON(w, err)
+			return
+		}
+	} else {
+		err = app.DB.DeleteQuestionExtension(payload.ID)
+		if err != nil {
+			app.errorJSON(w, err)
+			return
+		}
 	}
 
 	resp := JSONResponse{
 		Error:   false,
-		Message: "Question updated",
+		Message: "Question has been successfully updated",
 	}
 
-	app.writeJSON(w, http.StatusAccepted, resp)
+	app.writeJSON(w, http.StatusOK, resp)
+}
+
+func (app *application) deleteQuestion(w http.ResponseWriter, r *http.Request) {
+	id, err := strconv.Atoi(chi.URLParam(r, "id"))
+	if err != nil {
+		app.errorJSON(w, err)
+		return
+	}
+
+	err = app.DB.DeleteQuestion(id)
+	if err != nil {
+		app.errorJSON(w, err)
+		return
+	}
+
+	resp := JSONResponse{
+		Error:   false,
+		Message: "Question has been permanently deleted",
+	}
+
+	app.writeJSON(w, http.StatusOK, resp)
 }
 
 func (app *application) showFormAnswers(w http.ResponseWriter, r *http.Request) {
@@ -706,10 +916,10 @@ func (app *application) insertAnswers(w http.ResponseWriter, r *http.Request) {
 
 	resp := JSONResponse{
 		Error:   false,
-		Message: "Answers submitted",
+		Message: "Answers has been successfully saved",
 	}
 
-	app.writeJSON(w, http.StatusAccepted, resp)
+	app.writeJSON(w, http.StatusCreated, resp)
 }
 
 func (app *application) showQuestionAnswers(w http.ResponseWriter, r *http.Request) {
@@ -734,6 +944,30 @@ func (app *application) showQuestionAnswers(w http.ResponseWriter, r *http.Reque
 	}
 
 	_ = app.writeJSON(w, http.StatusOK, groupAnswers)
+}
+
+func (app *application) userAnswers(w http.ResponseWriter, r *http.Request) {
+	// Ambil klaim dari konteks menggunakan tipe kunci khusus
+	claims, ok := r.Context().Value(userClaimsKey).(*Claims)
+	if !ok {
+		app.errorJSON(w, errors.New("no claims in context"))
+		return
+	}
+
+	// Konversi userID dari string ke int
+	userID, err := strconv.Atoi(claims.Subject)
+	if err != nil {
+		app.errorJSON(w, errors.New("invalid user ID in token"))
+		return
+	}
+
+	answers, err := app.DB.GetAnswersByUser(userID)
+	if err != nil {
+		app.errorJSON(w, err)
+		return
+	}
+
+	_ = app.writeJSON(w, http.StatusOK, answers)
 }
 
 // //////////////////
@@ -815,20 +1049,40 @@ func (app *application) insertForum(w http.ResponseWriter, r *http.Request) {
 	forum.UserID = userID
 	forum.PublishedAt = time.Now()
 
-	newID, err := app.DB.InsertForum(forum)
+	_, err = app.DB.InsertForum(forum)
 	if err != nil {
 		app.errorJSON(w, err)
 		return
 	}
 
-	message := fmt.Sprintf("Forum added to %d", newID)
+	resp := JSONResponse{
+		Error:   false,
+		Message: "New forum has been successfully created",
+	}
+
+	app.writeJSON(w, http.StatusCreated, resp)
+}
+
+func (app *application) deleteForum(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	forumID, err := strconv.Atoi(id)
+	if err != nil {
+		app.errorJSON(w, err)
+		return
+	}
+
+	err = app.DB.DeleteForum(forumID)
+	if err != nil {
+		app.errorJSON(w, err)
+		return
+	}
 
 	resp := JSONResponse{
 		Error:   false,
-		Message: message,
+		Message: "Forum has been successfully deleted",
 	}
 
-	app.writeJSON(w, http.StatusAccepted, resp)
+	app.writeJSON(w, http.StatusOK, resp)
 }
 
 func (app *application) insertComment(w http.ResponseWriter, r *http.Request) {
@@ -884,10 +1138,10 @@ func (app *application) insertComment(w http.ResponseWriter, r *http.Request) {
 
 	resp := JSONResponse{
 		Error:   false,
-		Message: "Comment added",
+		Message: "New comment has been succesfully created",
 	}
 
-	app.writeJSON(w, http.StatusAccepted, resp)
+	app.writeJSON(w, http.StatusCreated, resp)
 }
 
 func (app *application) userLikes(w http.ResponseWriter, r *http.Request) {
@@ -950,10 +1204,10 @@ func (app *application) insertLike(w http.ResponseWriter, r *http.Request) {
 
 	resp := JSONResponse{
 		Error:   false,
-		Message: "Like success",
+		Message: "Like has been succesfully added",
 	}
 
-	app.writeJSON(w, http.StatusAccepted, resp)
+	app.writeJSON(w, http.StatusCreated, resp)
 }
 
 func (app *application) deleteLike(w http.ResponseWriter, r *http.Request) {
@@ -986,10 +1240,154 @@ func (app *application) deleteLike(w http.ResponseWriter, r *http.Request) {
 
 	resp := JSONResponse{
 		Error:   false,
-		Message: "Unlike success",
+		Message: "Like has been successfully deleted",
 	}
 
-	app.writeJSON(w, http.StatusAccepted, resp)
+	app.writeJSON(w, http.StatusOK, resp)
+}
+
+// //////////////////
+// Handler Jobs
+// //////////////////
+func (app *application) allJobs(w http.ResponseWriter, r *http.Request) {
+	jobs, err := app.DB.AllJobs()
+	if err != nil {
+		app.errorJSON(w, err)
+		return
+	}
+
+	_ = app.writeJSON(w, http.StatusOK, jobs)
+}
+
+func (app *application) job(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	jobID, err := strconv.Atoi(id)
+	if err != nil {
+		app.errorJSON(w, err)
+		return
+	}
+
+	job, err := app.DB.Job(jobID)
+	if err != nil {
+		app.errorJSON(w, err)
+		return
+	}
+
+	_ = app.writeJSON(w, http.StatusOK, job)
+}
+
+func (app *application) insertJob(w http.ResponseWriter, r *http.Request) {
+	var job models.Job
+
+	err := app.readJSON(w, r, &job)
+	if err != nil {
+		app.errorJSON(w, err)
+		return
+	}
+
+	// Ambil klaim dari konteks menggunakan tipe kunci khusus
+	claims, ok := r.Context().Value(userClaimsKey).(*Claims)
+	if !ok {
+		app.errorJSON(w, errors.New("no claims in context"))
+		return
+	}
+
+	// Konversi userID dari string ke int
+	userID, err := strconv.Atoi(claims.Subject)
+	if err != nil {
+		app.errorJSON(w, errors.New("invalid user ID in token"))
+		return
+	}
+
+	job.UserID = userID
+	job.CreatedAt = time.Now()
+	job.UpdatedAt = time.Now()
+
+	_, err = app.DB.InsertJob(job)
+	if err != nil {
+		app.errorJSON(w, err)
+		return
+	}
+
+	resp := JSONResponse{
+		Error:   false,
+		Message: "New job has been successfully posted",
+	}
+
+	app.writeJSON(w, http.StatusCreated, resp)
+}
+
+func (app *application) updateJob(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	jobID, err := strconv.Atoi(id)
+	if err != nil {
+		app.errorJSON(w, err)
+		return
+	}
+
+	var payload models.Job
+
+	err = app.readJSON(w, r, &payload)
+	if err != nil {
+		app.errorJSON(w, err)
+		return
+	}
+
+	if jobID != payload.ID {
+		app.errorJSON(w, errors.New("invalid request"))
+		return
+	}
+
+	job, err := app.DB.Job(payload.ID)
+	if err != nil {
+		app.errorJSON(w, err)
+		return
+	}
+
+	job.JobPosition = payload.JobPosition
+	job.Company = payload.Company
+	job.JobLocation = payload.JobLocation
+	job.JobType = payload.JobType
+	job.MinSalary = payload.MinSalary
+	job.MaxSalary = payload.MaxSalary
+	job.Description = payload.Description
+	job.Closed = payload.Closed
+	job.UpdatedAt = time.Now()
+
+	err = app.DB.UpdateJob(*job)
+	if err != nil {
+		app.errorJSON(w, err)
+		return
+	}
+
+	resp := JSONResponse{
+		Error:   false,
+		Message: "Job has been successfully updated",
+	}
+
+	app.writeJSON(w, http.StatusOK, resp)
+}
+
+func (app *application) deleteJob(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	jobID, err := strconv.Atoi(id)
+	if err != nil {
+		app.errorJSON(w, err)
+		return
+	}
+
+	err = app.DB.DeleteJob(jobID)
+	if err != nil {
+		app.errorJSON(w, err)
+		return
+	}
+
+	resp := JSONResponse{
+		Error:   false,
+		Message: "Job has been successfully deleted",
+	}
+
+	app.writeJSON(w, http.StatusOK, resp)
 }
 
 func (app *application) uploadImage(w http.ResponseWriter, r *http.Request) {
@@ -1150,7 +1548,7 @@ func (app *application) register(w http.ResponseWriter, r *http.Request) {
 		Message: "Register success",
 	}
 
-	app.writeJSON(w, http.StatusAccepted, resp)
+	app.writeJSON(w, http.StatusCreated, resp)
 
 }
 
@@ -1197,7 +1595,7 @@ func (app *application) authenticate(w http.ResponseWriter, r *http.Request) {
 	refreshCookie := app.auth.GetRefreshCookie(tokens.RefreshToken)
 	http.SetCookie(w, refreshCookie)
 
-	app.writeJSON(w, http.StatusAccepted, tokens)
+	app.writeJSON(w, http.StatusOK, tokens)
 }
 
 func (app *application) refreshToken(w http.ResponseWriter, r *http.Request) {
@@ -1250,5 +1648,5 @@ func (app *application) refreshToken(w http.ResponseWriter, r *http.Request) {
 
 func (app *application) logout(w http.ResponseWriter, r *http.Request) {
 	http.SetCookie(w, app.auth.GetExpiredRefreshCookie())
-	w.WriteHeader(http.StatusAccepted)
+	w.WriteHeader(http.StatusNoContent)
 }

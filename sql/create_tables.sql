@@ -30,6 +30,7 @@ CREATE TABLE public.users (
     email character varying(255) UNIQUE,
     password character varying(255),
     is_admin boolean,
+    photo character varying(255),
     created_at timestamp,
     updated_at timestamp
 );
@@ -69,6 +70,23 @@ CREATE TABLE public.alumni_profile (
 
 
 --
+-- Name: alumni; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.admin_profile (
+    id integer NOT NULL,
+    user_id integer UNIQUE NOT NULL,
+    is_super_admin boolean default false,
+    name character varying(255),
+    bio text DEFAULT NULL,
+    sm_facebook character varying(64) DEFAULT NULL,
+    sm_instagram character varying(64) DEFAULT NULL,
+    sm_twitter character varying(64) DEFAULT NULL,
+    sm_tiktok character varying(64) DEFAULT NULL
+);
+
+
+--
 -- Name: articles; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -79,9 +97,10 @@ CREATE TABLE public.articles (
     slug character varying(255),
     body text,
     status public.article_status,
-    created_at timestamp without time zone,
-    updated_at timestamp without time zone,
-    published_at timestamp without time zone default NULL
+    image character varying(255) DEFAULT 'public/no-image.png',
+    created_at timestamp,
+    updated_at timestamp,
+    published_at timestamp default NULL
 );
 
 
@@ -96,6 +115,7 @@ CREATE TABLE public.forms (
     start_date timestamp without time zone,
     end_date timestamp without time zone,
     has_time_limit boolean,
+    hidden boolean default false,
     created_at timestamp without time zone,
     updated_at timestamp without time zone
 );
@@ -111,6 +131,7 @@ CREATE TABLE public.questions (
     form_id integer,
     question_text text,
     type public.question_type,
+    extension boolean default false,
     created_at timestamp without time zone,
     updated_at timestamp without time zone
 );
@@ -123,7 +144,7 @@ CREATE TABLE public.questions (
 CREATE TABLE public.options (
     id integer NOT NULL,
     question_id integer,
-    option_text text
+    option_text character varying(255)
 );
 
 
@@ -137,6 +158,18 @@ CREATE TABLE public.answers (
     form_id integer NOT NULL,
     question_id integer NOT NULL,
     answer_text text
+);
+
+
+--
+-- Name: questions; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.questions_extension (
+    id integer NOT NULL,
+    question_id integer NOT NULL,
+    followup_question_id integer NOT NULL,
+    followup_option_value character varying(255)
 );
 
 
@@ -177,6 +210,25 @@ CREATE TABLE public.likes (
 );
 
 
+--
+-- Name: jobs; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.jobs (
+    id integer NOT NULL,
+    user_id integer NOT NULL,
+    job_position character varying(255),
+    company character varying(255),
+    job_location character varying(255),
+    job_type character varying(255),
+    min_salary INT,
+    max_salary INT,
+    description text,
+    closed boolean default false,
+    created_at timestamp,
+    updated_at timestamp
+);
+
 
 --
 -- Name: users_id_seq; Type: SEQUENCE; Schema: public; Owner: -
@@ -212,6 +264,20 @@ ALTER TABLE public.alumni ALTER COLUMN id ADD GENERATED ALWAYS AS IDENTITY (
 
 ALTER TABLE public.alumni_profile ALTER COLUMN id ADD GENERATED ALWAYS AS IDENTITY (
     SEQUENCE NAME public.alumni_profile_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1
+);
+
+
+--
+-- Name: admin_profile_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+ALTER TABLE public.admin_profile ALTER COLUMN id ADD GENERATED ALWAYS AS IDENTITY (
+    SEQUENCE NAME public.admin_profile_id_seq
     START WITH 1
     INCREMENT BY 1
     NO MINVALUE
@@ -291,6 +357,20 @@ ALTER TABLE public.answers ALTER COLUMN id ADD GENERATED ALWAYS AS IDENTITY (
 
 
 --
+-- Name: answers_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+ALTER TABLE public.questions_extension ALTER COLUMN id ADD GENERATED ALWAYS AS IDENTITY (
+    SEQUENCE NAME public.aquestions_extension_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1
+);
+
+
+--
 -- Name: forums_id_seq; Type: SEQUENCE; Schema: public; Owner: -
 --
 
@@ -333,6 +413,20 @@ ALTER TABLE public.likes ALTER COLUMN id ADD GENERATED ALWAYS AS IDENTITY (
 
 
 --
+-- Name: jobs_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+ALTER TABLE public.jobs ALTER COLUMN id ADD GENERATED ALWAYS AS IDENTITY (
+    SEQUENCE NAME public.jobs_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1
+);
+
+
+--
 -- Name: users users_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -349,11 +443,19 @@ ALTER TABLE ONLY public.alumni
 
 
 --
--- Name: alumni alumni_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: alumni_profile alumni_profile_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.alumni_profile
     ADD CONSTRAINT alumni_profile_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: admin_profile alumni_profile_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.admin_profile
+    ADD CONSTRAINT admin_profile_pkey PRIMARY KEY (id);
 
 
 --
@@ -397,6 +499,14 @@ ALTER TABLE ONLY public.answers
 
 
 --
+-- Name: answers answers_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.questions_extension
+    ADD CONSTRAINT questions_extension_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: forums forums_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -421,7 +531,15 @@ ALTER TABLE ONLY public.likes
 
 
 --
--- Name: alumni alumni_profile_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+-- Name: likes likes_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.jobs
+    ADD CONSTRAINT jobs_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: alumni_profile alumni_profile_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.alumni_profile
@@ -434,6 +552,14 @@ ALTER TABLE ONLY public.alumni_profile
 
 ALTER TABLE ONLY public.alumni_profile
     ADD CONSTRAINT alumni_profile_alumni_id_fkey FOREIGN KEY (alumni_id) REFERENCES public.alumni(id) ON UPDATE CASCADE ON DELETE CASCADE;
+
+
+--
+-- Name: admin_profile admin_profile_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.admin_profile
+    ADD CONSTRAINT admin_profile_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id) ON UPDATE CASCADE ON DELETE CASCADE;
 
 
 --
@@ -477,6 +603,22 @@ ALTER TABLE ONLY public.answers
 
 
 --
+-- Name: answers answers_question_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.questions_extension
+    ADD CONSTRAINT questions_extension_question_id_fkey FOREIGN KEY (question_id) REFERENCES public.questions(id) ON UPDATE CASCADE ON DELETE CASCADE;
+
+
+--
+-- Name: answers answers_question_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.questions_extension
+    ADD CONSTRAINT questions_extension_followup_question_id_fkey FOREIGN KEY (followup_question_id) REFERENCES public.questions(id) ON UPDATE CASCADE ON DELETE CASCADE;
+
+
+--
 -- Name: forums forums_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -517,6 +659,14 @@ ALTER TABLE ONLY public.likes
 
 
 --
+-- Name: likes job_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.jobs
+    ADD CONSTRAINT jobs_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id) ON UPDATE CASCADE ON DELETE CASCADE;
+
+
+--
 -- Data for Name: alumni; Type: TABLE DATA; Schema: public; Owner: -
 --
 
@@ -533,7 +683,15 @@ COPY public.alumni (nisn, nis, name, gender, phone, graduation_year, class) FROM
 
 COPY public.users (username, email, password, is_admin, created_at, updated_at) FROM stdin;
 admin	admin@gmail.com	$2a$12$qDysuB7aGhgtRCI08kP24OMVK3snloIpSRzhvbIBIusaGpdQ5vNIa	true	2022-09-23 00:00:00	2022-09-23 00:00:00
-ikramzaidann	ikramzaidan820@gmail.com	$2a$12$qDysuB7aGhgtRCI08kP24OMVK3snloIpSRzhvbIBIusaGpdQ5vNIa	false	2022-09-23 00:00:00	2022-09-23 00:00:00
+\.
+
+
+--
+-- Data for Name: admin_profile; Type: TABLE DATA; Schema: public; Owner: -
+--
+
+COPY public.admin_profile (user_id, is_super_admin, name, bio) FROM stdin;
+1	true	Admin	Admin portal alumni SMA Telkom Bandung
 \.
 
 
@@ -542,7 +700,7 @@ ikramzaidann	ikramzaidan820@gmail.com	$2a$12$qDysuB7aGhgtRCI08kP24OMVK3snloIpSRz
 --
 
 COPY public.articles (title, slug, body, status, created_at, updated_at, published_at) FROM stdin;
-Kepala Sekolah Ganti	wawancara-aplikasi-alumni	<p style="text-align:justify;"><strong>Lorem Ipsum</strong> is simply dummy text of the printing and typesetting industry. Lorem Ipsum has been the industrys standard dummy text ever since the 1500s, when an unknown printer took a galley of type and scrambled it to make a type specimen book. It has survived not only five centuries, but also the leap into electronic typesetting, remaining essentially unchanged. It was popularised in the 1960s with the release of Letraset sheets containing Lorem Ipsum passages, and more recently with desktop publishing software like Aldus PageMaker including versions of Lorem Ipsum.</p><p style="text-align:justify;">&nbsp;</p><figure class="image"><img style="aspect-ratio:1200/1600;" src="http://localhost:8080/public/upload-3718730412.jpeg" width="1200" height="1600"></figure>	published	2022-09-23 00:00:00	2022-09-23 00:00:00	2022-09-23 00:00:00
+Kepala Sekolah Ganti	wawancara-aplikasi-alumni	<p style="text-align:justify;"><strong>Lorem Ipsum</strong> is simply dummy text of the printing and typesetting industry. Lorem Ipsum has been the industrys standard dummy text ever since the 1500s, when an unknown printer took a galley of type and scrambled it to make a type specimen book. It has survived not only five centuries, but also the leap into electronic typesetting, remaining essentially unchanged. It was popularised in the 1960s with the release of Letraset sheets containing Lorem Ipsum passages, and more recently with desktop publishing software like Aldus PageMaker including versions of Lorem Ipsum.</p><p style="text-align:justify;">&nbsp;</p>	published	2022-09-23 00:00:00	2022-09-23 00:00:00	2022-09-23 00:00:00
 \.
 
 

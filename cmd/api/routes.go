@@ -28,7 +28,7 @@ func (app *application) routes() http.Handler {
 		mux.Get("/alumni/{id}", app.Alumni)
 
 		mux.Get("/articles", app.allArticles)
-		mux.Get("/articles/{id}", app.article)
+		mux.Get("/articles/{slug}", app.article)
 
 		mux.Get("/forms", app.allForms)                   // Get all forms data
 		mux.Get("/forms/{id}", app.form)                  // Get a form data without questions
@@ -39,6 +39,7 @@ func (app *application) routes() http.Handler {
 		mux.Get("/forums/{id}", app.forum)
 		mux.Get("/forums/user/{username}", app.allUserForums)
 		mux.Post("/forums/create", app.insertForum)
+		mux.Delete("/forums/{id}", app.deleteForum)
 		mux.Post("/forums/{id}/like", app.insertLike)
 		mux.Post("/forums/{id}/unlike", app.deleteLike)
 		mux.Post("/forums/{id}/reply", app.insertComment)
@@ -47,7 +48,14 @@ func (app *application) routes() http.Handler {
 		mux.Get("/profile/{username}", app.profile)
 		mux.Patch("/profile/update", app.updateProfile)
 
+		mux.Get("/jobs", app.allJobs)
+		mux.Get("/jobs/{id}", app.job)
+		mux.Post("/jobs/create", app.insertJob)
+		mux.Patch("/jobs/{id}", app.updateJob)
+		mux.Delete("/jobs/{id}", app.deleteJob)
+
 		mux.Get("/likes", app.userLikes)
+		mux.Get("/answers", app.userAnswers)
 
 		mux.Post("/upload_image", app.uploadImage)
 
@@ -55,10 +63,15 @@ func (app *application) routes() http.Handler {
 		mux.Route("/", func(mux chi.Router) {
 			mux.Use(app.adminRequired)
 
+			mux.Get("/dashboard", app.Dashboard)
+
 			mux.Post("/alumni/create", app.insertAlumni)
+			mux.Post("/alumni/import", app.importAlumni)
+			mux.Post("/alumni/import/save", app.insertImportAlumni)
 			mux.Patch("/alumni/{id}", app.updateAlumni)
 			mux.Delete("/alumni/{id}", app.deleteAlumni)
 
+			mux.Get("/articles/{id}/show", app.showArticle)
 			mux.Post("/articles/create", app.insertArticle)
 			mux.Patch("/articles/{id}", app.updateArticle)
 			mux.Delete("/articles/{id}", app.deleteArticle)
@@ -71,6 +84,7 @@ func (app *application) routes() http.Handler {
 
 			mux.Get("/questions/{id}", app.question)
 			mux.Post("/questions/create", app.insertQuestion)
+			mux.Delete("/questions/{id}", app.deleteQuestion)
 			mux.Patch("/questions/{id}", app.updateQuestion)
 		})
 	})

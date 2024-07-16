@@ -13,6 +13,7 @@ type Forum struct {
 	Likes          []*Like    `json:"likes,omitempty"`
 	UserUsername   string     `json:"user_username,omitempty"`
 	UserName       string     `json:"user_name,omitempty"`
+	UserPhoto      string     `json:"user_photo,omitempty"`
 	CommentsNumber int        `json:"comments_number,omitempty"`
 	LikesNumber    int        `json:"likes_number,omitempty"`
 }
@@ -24,6 +25,7 @@ type Comment struct {
 	Comment      string    `json:"reply_text"`
 	PublishedAt  time.Time `json:"published_at"`
 	UserUsername string    `json:"user_username,omitempty"`
+	UserPhoto    string    `json:"user_photo,omitempty"`
 	UserName     string    `json:"user_name,omitempty"`
 }
 
