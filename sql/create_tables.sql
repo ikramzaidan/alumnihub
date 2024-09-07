@@ -231,6 +231,43 @@ CREATE TABLE public.jobs (
 
 
 --
+-- Name: alumni_educations; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.alumni_educations (
+    id integer NOT NULL,
+    user_id integer NOT NULL,
+    school_name character varying(255),
+    school_degree character varying(255),
+    school_study_major character varying(255),
+    start_year INT,
+    end_year INT,
+    currently_studying boolean default false,
+    created_at timestamp,
+    updated_at timestamp
+);
+
+
+--
+-- Name: alumni_jobs; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.alumni_jobs (
+    id integer NOT NULL,
+    user_id integer NOT NULL,
+    position character varying(255),
+    company character varying(255),
+    company_location character varying(255),
+    employment_type character varying(255),
+    start_year INT,
+    end_year INT,
+    currently_working boolean default false,
+    created_at timestamp,
+    updated_at timestamp
+);
+
+
+--
 -- Name: users_id_seq; Type: SEQUENCE; Schema: public; Owner: -
 --
 
@@ -427,6 +464,34 @@ ALTER TABLE public.jobs ALTER COLUMN id ADD GENERATED ALWAYS AS IDENTITY (
 
 
 --
+-- Name: alumni_educations_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+ALTER TABLE public.alumni_educations ALTER COLUMN id ADD GENERATED ALWAYS AS IDENTITY (
+    SEQUENCE NAME public.alumni_educations_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1
+);
+
+
+--
+-- Name: alumni_jobs_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+ALTER TABLE public.alumni_jobs ALTER COLUMN id ADD GENERATED ALWAYS AS IDENTITY (
+    SEQUENCE NAME public.alumni_jobs_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1
+);
+
+
+--
 -- Name: users users_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -536,6 +601,22 @@ ALTER TABLE ONLY public.likes
 
 ALTER TABLE ONLY public.jobs
     ADD CONSTRAINT jobs_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: alumni_educations alumni_educations_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.alumni_educations
+    ADD CONSTRAINT alumni_educations_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: alumni_jobs alumni_jobs_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.alumni_jobs
+    ADD CONSTRAINT alumni_jobs_pkey PRIMARY KEY (id);
 
 
 --
@@ -664,6 +745,22 @@ ALTER TABLE ONLY public.likes
 
 ALTER TABLE ONLY public.jobs
     ADD CONSTRAINT jobs_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id) ON UPDATE CASCADE ON DELETE CASCADE;
+
+
+--
+-- Name: alumni_educations alumni_educations_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.alumni_educations
+    ADD CONSTRAINT alumni_educations_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id) ON UPDATE CASCADE ON DELETE CASCADE;
+
+
+--
+-- Name: alumni_jobs alumni_jobs_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.alumni_jobs
+    ADD CONSTRAINT alumni_jobs_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id) ON UPDATE CASCADE ON DELETE CASCADE;
 
 
 --

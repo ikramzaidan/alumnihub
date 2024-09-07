@@ -20,6 +20,7 @@ func (app *application) routes() http.Handler {
 	mux.Get("/refresh", app.refreshToken)
 	mux.Get("/logout", app.logout)
 	mux.Get("/public/{image_path}", app.serveImage)
+	mux.Get("/forms/{id}/answers/export", app.exportAnswers)
 
 	mux.Route("/", func(mux chi.Router) {
 		mux.Use(app.authRequired)
@@ -47,6 +48,10 @@ func (app *application) routes() http.Handler {
 		mux.Get("/profile", app.myProfile)
 		mux.Get("/profile/{username}", app.profile)
 		mux.Patch("/profile/update", app.updateProfile)
+		mux.Post("/profile/educations/create", app.insertAlumniEducation)
+		mux.Delete("/profile/educations/{id}", app.deleteAlumniEducation)
+		mux.Post("/profile/jobs/create", app.insertAlumniJob)
+		mux.Delete("/profile/jobs/{id}", app.deleteAlumniJob)
 
 		mux.Get("/jobs", app.allJobs)
 		mux.Get("/jobs/{id}", app.job)

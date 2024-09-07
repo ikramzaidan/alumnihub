@@ -66,6 +66,406 @@ func (app *application) Dashboard(w http.ResponseWriter, r *http.Request) {
 	_ = app.writeJSON(w, http.StatusOK, payload)
 }
 
+func (app *application) profile(w http.ResponseWriter, r *http.Request) {
+	username := chi.URLParam(r, "username")
+
+	userID, err := app.DB.GetUserIDByUsername(username)
+	if err != nil {
+		app.errorJSON(w, err)
+		return
+	}
+
+	user, err := app.DB.GetUserByID(userID)
+	if err != nil {
+		app.errorJSON(w, err)
+		return
+	}
+
+	var profile models.Profile
+
+	if !user.IsAdmin {
+		profileAlumni, err := app.DB.GetProfileByUserID(userID)
+		if err != nil {
+			app.errorJSON(w, err)
+			return
+		}
+
+		alumniName, err := app.DB.GetAlumniNameByID(profileAlumni.AlumniID)
+		if err != nil {
+			app.errorJSON(w, err)
+			return
+		}
+
+		profile = *profileAlumni
+		profile.UserName = alumniName
+	} else {
+		profileAdmin, err := app.DB.GetAdminProfileByUserID(userID)
+		if err != nil {
+			app.errorJSON(w, err)
+			return
+		}
+
+		profile = *profileAdmin
+	}
+
+	userPhoto, err := app.DB.GetUserPhotoByID(userID)
+	if err != nil {
+		app.errorJSON(w, err)
+		return
+	}
+
+	educations, err := app.DB.GetAlumniEducations(userID)
+	if err != nil {
+		app.errorJSON(w, err)
+		return
+	}
+
+	jobs, err := app.DB.GetAlumniJobs(userID)
+	if err != nil {
+		app.errorJSON(w, err)
+		return
+	}
+
+	profile.UserUsername = user.Username
+	profile.Photo = userPhoto
+	profile.Educations = educations
+	profile.Jobs = jobs
+
+	app.writeJSON(w, http.StatusOK, profile)
+}
+
+func (app *application) myProfile(w http.ResponseWriter, r *http.Request) {
+	// Ambil klaim dari konteks menggunakan tipe kunci khusus
+	claims, ok := r.Context().Value(userClaimsKey).(*Claims)
+	if !ok {
+		app.errorJSON(w, errors.New("no claims in context"))
+		return
+	}
+
+	// Konversi userID dari string ke int
+	userID, err := strconv.Atoi(claims.Subject)
+	if err != nil {
+		app.errorJSON(w, errors.New("invalid user ID in token"))
+		return
+	}
+
+	var profile models.Profile
+
+	if !claims.IsAdmin {
+		profileAlumni, err := app.DB.GetProfileByUserID(userID)
+		if err != nil {
+			app.errorJSON(w, err)
+			return
+		}
+
+		alumniName, err := app.DB.GetAlumniNameByID(profileAlumni.AlumniID)
+		if err != nil {
+			app.errorJSON(w, err)
+			return
+		}
+
+		profile = *profileAlumni
+		profile.UserName = alumniName
+	} else {
+		profileAdmin, err := app.DB.GetAdminProfileByUserID(userID)
+		if err != nil {
+			app.errorJSON(w, err)
+			return
+		}
+
+		profile = *profileAdmin
+	}
+
+	userUsername, err := app.DB.GetUserUsernameByID(userID)
+	if err != nil {
+		app.errorJSON(w, err)
+		return
+	}
+
+	userPhoto, err := app.DB.GetUserPhotoByID(userID)
+	if err != nil {
+		app.errorJSON(w, err)
+		return
+	}
+
+	educations, err := app.DB.GetAlumniEducations(userID)
+	if err != nil {
+		app.errorJSON(w, err)
+		return
+	}
+
+	jobs, err := app.DB.GetAlumniJobs(userID)
+	if err != nil {
+		app.errorJSON(w, err)
+		return
+	}
+
+	profile.UserUsername = userUsername
+	profile.Photo = userPhoto
+	profile.Educations = educations
+	profile.Jobs = jobs
+
+	app.writeJSON(w, http.StatusOK, profile)
+}
+
+func (app *application) updateProfile(w http.ResponseWriter, r *http.Request) {
+	// Ambil klaim dari konteks menggunakan tipe kunci khusus
+	claims, ok := r.Context().Value(userClaimsKey).(*Claims)
+	if !ok {
+		app.errorJSON(w, errors.New("no claims in context"))
+		return
+	}
+
+	// Konversi userID dari string ke int
+	userID, err := strconv.Atoi(claims.Subject)
+	if err != nil {
+		app.errorJSON(w, errors.New("invalid user ID in token"))
+		return
+	}
+
+	var payload models.Profile
+	var profile models.Profile
+
+	err = app.readJSON(w, r, &payload)
+	if err != nil {
+		app.errorJSON(w, err)
+		return
+	}
+
+	if !claims.IsAdmin {
+		profileAlumni, err := app.DB.GetProfileByUserID(userID)
+		if err != nil {
+			app.errorJSON(w, err)
+			return
+		}
+
+		alumniName, err := app.DB.GetAlumniNameByID(profileAlumni.AlumniID)
+		if err != nil {
+			app.errorJSON(w, err)
+			return
+		}
+
+		profile = *profileAlumni
+		profile.UserName = alumniName
+		profile.Location = payload.Location
+	} else {
+		profileAdmin, err := app.DB.GetAdminProfileByUserID(userID)
+		if err != nil {
+			app.errorJSON(w, err)
+			return
+		}
+
+		profile = *profileAdmin
+	}
+
+	profile.Bio = payload.Bio
+	profile.Facebook = payload.Facebook
+	profile.Instagram = payload.Instagram
+	profile.Twitter = payload.Twitter
+	profile.Tiktok = payload.Tiktok
+	profile.Photo = payload.Photo
+
+	if !claims.IsAdmin {
+		err = app.DB.UpdateProfile(profile)
+		if err != nil {
+			app.errorJSON(w, err)
+			return
+		}
+	} else {
+		err = app.DB.UpdateAdminProfile(profile)
+		if err != nil {
+			app.errorJSON(w, err)
+			return
+		}
+	}
+
+	resp := JSONResponse{
+		Error:   false,
+		Message: "Profile updated",
+	}
+
+	app.writeJSON(w, http.StatusOK, resp)
+}
+
+func (app *application) insertAlumniEducation(w http.ResponseWriter, r *http.Request) {
+	// Ambil klaim dari konteks menggunakan tipe kunci khusus
+	claims, ok := r.Context().Value(userClaimsKey).(*Claims)
+	if !ok {
+		app.errorJSON(w, errors.New("no claims in context"))
+		return
+	}
+
+	// Konversi userID dari string ke int
+	userID, err := strconv.Atoi(claims.Subject)
+	if err != nil {
+		app.errorJSON(w, errors.New("invalid user ID in token"))
+		return
+	}
+
+	var education models.AlumniEducation
+
+	err = app.readJSON(w, r, &education)
+	if err != nil {
+		app.errorJSON(w, err)
+		return
+	}
+
+	education.UserID = userID
+
+	err = app.DB.InsertAlumniEducation(education)
+	if err != nil {
+		app.errorJSON(w, err)
+		return
+	}
+
+	message := "New education section has been successfully added"
+
+	resp := JSONResponse{
+		Error:   false,
+		Message: message,
+	}
+
+	app.writeJSON(w, http.StatusCreated, resp)
+}
+
+func (app *application) deleteAlumniEducation(w http.ResponseWriter, r *http.Request) {
+	// Ambil klaim dari konteks menggunakan tipe kunci khusus
+	claims, ok := r.Context().Value(userClaimsKey).(*Claims)
+	if !ok {
+		app.errorJSON(w, errors.New("no claims in context"))
+		return
+	}
+
+	// Konversi userID dari string ke int
+	userID, err := strconv.Atoi(claims.Subject)
+	if err != nil {
+		app.errorJSON(w, errors.New("invalid user ID in token"))
+		return
+	}
+
+	id := chi.URLParam(r, "id")
+	educationID, err := strconv.Atoi(id)
+	if err != nil {
+		app.errorJSON(w, err)
+		return
+	}
+
+	education, err := app.DB.GetAlumniEducation(educationID)
+	if err != nil {
+		app.errorJSON(w, err)
+		return
+	}
+
+	if userID != education.UserID {
+		app.errorJSON(w, errors.New("user have no permissions"))
+		return
+	}
+
+	err = app.DB.DeleteAlumniEducations(educationID)
+	if err != nil {
+		app.errorJSON(w, err)
+		return
+	}
+
+	resp := JSONResponse{
+		Error:   false,
+		Message: "This education section has been permanently deleted",
+	}
+
+	app.writeJSON(w, http.StatusOK, resp)
+}
+
+func (app *application) insertAlumniJob(w http.ResponseWriter, r *http.Request) {
+	// Ambil klaim dari konteks menggunakan tipe kunci khusus
+	claims, ok := r.Context().Value(userClaimsKey).(*Claims)
+	if !ok {
+		app.errorJSON(w, errors.New("no claims in context"))
+		return
+	}
+
+	// Konversi userID dari string ke int
+	userID, err := strconv.Atoi(claims.Subject)
+	if err != nil {
+		app.errorJSON(w, errors.New("invalid user ID in token"))
+		return
+	}
+
+	var alumnijob models.AlumniJob
+
+	err = app.readJSON(w, r, &alumnijob)
+	if err != nil {
+		app.errorJSON(w, err)
+		return
+	}
+
+	alumnijob.UserID = userID
+
+	err = app.DB.InsertAlumniJob(alumnijob)
+	if err != nil {
+		app.errorJSON(w, err)
+		return
+	}
+
+	message := "New job section has been successfully added"
+
+	resp := JSONResponse{
+		Error:   false,
+		Message: message,
+	}
+
+	app.writeJSON(w, http.StatusCreated, resp)
+}
+
+func (app *application) deleteAlumniJob(w http.ResponseWriter, r *http.Request) {
+	// Ambil klaim dari konteks menggunakan tipe kunci khusus
+	claims, ok := r.Context().Value(userClaimsKey).(*Claims)
+	if !ok {
+		app.errorJSON(w, errors.New("no claims in context"))
+		return
+	}
+
+	// Konversi userID dari string ke int
+	userID, err := strconv.Atoi(claims.Subject)
+	if err != nil {
+		app.errorJSON(w, errors.New("invalid user ID in token"))
+		return
+	}
+
+	id := chi.URLParam(r, "id")
+	jobID, err := strconv.Atoi(id)
+	if err != nil {
+		app.errorJSON(w, err)
+		return
+	}
+
+	alumnijob, err := app.DB.GetAlumniJob(jobID)
+	if err != nil {
+		app.errorJSON(w, err)
+		return
+	}
+
+	if userID != alumnijob.UserID {
+		app.errorJSON(w, errors.New("user have no permissions"))
+		return
+	}
+
+	err = app.DB.DeleteAlumniJobs(jobID)
+	if err != nil {
+		app.errorJSON(w, err)
+		return
+	}
+
+	resp := JSONResponse{
+		Error:   false,
+		Message: "This job section has been permanently deleted",
+	}
+
+	app.writeJSON(w, http.StatusOK, resp)
+}
+
+// //////////////////
+// Handler Alumni
+// //////////////////
 func (app *application) AllAlumni(w http.ResponseWriter, r *http.Request) {
 	alumni, err := app.DB.AllAlumni()
 	if err != nil {
@@ -271,157 +671,6 @@ func (app *application) deleteAlumni(w http.ResponseWriter, r *http.Request) {
 	resp := JSONResponse{
 		Error:   false,
 		Message: "Alumni has been permanently deleted",
-	}
-
-	app.writeJSON(w, http.StatusOK, resp)
-}
-
-func (app *application) profile(w http.ResponseWriter, r *http.Request) {
-	username := chi.URLParam(r, "username")
-
-	userID, err := app.DB.GetUserIDByUsername(username)
-	if err != nil {
-		app.errorJSON(w, err)
-		return
-	}
-
-	profile, err := app.DB.GetProfileByUserID(userID)
-	if err != nil {
-		app.errorJSON(w, err)
-		return
-	}
-
-	alumniName, err := app.DB.GetAlumniNameByID(profile.AlumniID)
-	if err != nil {
-		app.errorJSON(w, err)
-		return
-	}
-
-	userUsername, err := app.DB.GetUserUsernameByID(userID)
-	if err != nil {
-		app.errorJSON(w, err)
-		return
-	}
-
-	userPhoto, err := app.DB.GetUserPhotoByID(userID)
-	if err != nil {
-		app.errorJSON(w, err)
-		return
-	}
-
-	profile.UserName = alumniName
-	profile.UserUsername = userUsername
-	profile.Photo = userPhoto
-
-	app.writeJSON(w, http.StatusOK, profile)
-}
-
-func (app *application) myProfile(w http.ResponseWriter, r *http.Request) {
-	// Ambil klaim dari konteks menggunakan tipe kunci khusus
-	claims, ok := r.Context().Value(userClaimsKey).(*Claims)
-	if !ok {
-		app.errorJSON(w, errors.New("no claims in context"))
-		return
-	}
-
-	// Konversi userID dari string ke int
-	userID, err := strconv.Atoi(claims.Subject)
-	if err != nil {
-		app.errorJSON(w, errors.New("invalid user ID in token"))
-		return
-	}
-
-	var profile models.Profile
-
-	if !claims.IsAdmin {
-		profileAlumni, err := app.DB.GetProfileByUserID(userID)
-		if err != nil {
-			app.errorJSON(w, err)
-			return
-		}
-
-		alumniName, err := app.DB.GetAlumniNameByID(profileAlumni.AlumniID)
-		if err != nil {
-			app.errorJSON(w, err)
-			return
-		}
-
-		profile = *profileAlumni
-		profile.UserName = alumniName
-	} else {
-		profileAdmin, err := app.DB.GetAdminProfileByUserID(userID)
-		if err != nil {
-			app.errorJSON(w, err)
-			return
-		}
-
-		profile = *profileAdmin
-	}
-
-	userUsername, err := app.DB.GetUserUsernameByID(userID)
-	if err != nil {
-		app.errorJSON(w, err)
-		return
-	}
-
-	userPhoto, err := app.DB.GetUserPhotoByID(userID)
-	if err != nil {
-		app.errorJSON(w, err)
-		return
-	}
-
-	profile.UserUsername = userUsername
-	profile.Photo = userPhoto
-
-	app.writeJSON(w, http.StatusOK, profile)
-}
-
-func (app *application) updateProfile(w http.ResponseWriter, r *http.Request) {
-	// Ambil klaim dari konteks menggunakan tipe kunci khusus
-	claims, ok := r.Context().Value(userClaimsKey).(*Claims)
-	if !ok {
-		app.errorJSON(w, errors.New("no claims in context"))
-		return
-	}
-
-	// Konversi userID dari string ke int
-	userID, err := strconv.Atoi(claims.Subject)
-	if err != nil {
-		app.errorJSON(w, errors.New("invalid user ID in token"))
-		return
-	}
-
-	var payload models.Profile
-
-	err = app.readJSON(w, r, &payload)
-	if err != nil {
-		app.errorJSON(w, err)
-		return
-	}
-
-	profile, err := app.DB.GetProfileByUserID(userID)
-	if err != nil {
-		app.errorJSON(w, err)
-		return
-	}
-
-	profile.Bio = payload.Bio
-	profile.Location = payload.Location
-	profile.Facebook = payload.Facebook
-	profile.Instagram = payload.Instagram
-	profile.Twitter = payload.Twitter
-	profile.Tiktok = payload.Tiktok
-	profile.Photo = payload.Photo
-
-	err = app.DB.UpdateProfile(*profile)
-	if err != nil {
-		app.errorJSON(w, err)
-		return
-	}
-
-	resp := JSONResponse{
-		Error:   false,
-		Message: "Profile updated",
 	}
 
 	app.writeJSON(w, http.StatusOK, resp)
@@ -642,7 +891,7 @@ func (app *application) insertForm(w http.ResponseWriter, r *http.Request) {
 	form.CreatedAt = time.Now()
 	form.UpdatedAt = time.Now()
 
-	_, err = app.DB.InsertForm(form)
+	surveyID, err := app.DB.InsertForm(form)
 	if err != nil {
 		app.errorJSON(w, err)
 		return
@@ -650,7 +899,7 @@ func (app *application) insertForm(w http.ResponseWriter, r *http.Request) {
 
 	resp := JSONResponse{
 		Error:   false,
-		Message: "New survey has been successfully created",
+		Message: fmt.Sprintf("New survey has been successfully created with id %d", surveyID),
 	}
 
 	app.writeJSON(w, http.StatusCreated, resp)
@@ -944,6 +1193,112 @@ func (app *application) showQuestionAnswers(w http.ResponseWriter, r *http.Reque
 	}
 
 	_ = app.writeJSON(w, http.StatusOK, groupAnswers)
+}
+
+func (app *application) exportAnswers(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	formID, err := strconv.Atoi(id)
+	if err != nil {
+		app.errorJSON(w, err)
+		return
+	}
+
+	// Get survey data
+	form, err := app.DB.Form(formID)
+	if err != nil {
+		app.errorJSON(w, err)
+		return
+	}
+
+	xlsx := excelize.NewFile()
+
+	// Iterate
+	for _, formQuestion := range form.Questions {
+		sheetName := fmt.Sprintf("Question %d", formQuestion.ID)
+		index, err := xlsx.NewSheet(sheetName)
+		if err != nil {
+			fmt.Println(err)
+			return
+		}
+
+		question, err := app.DB.Question(formQuestion.ID)
+		if err != nil {
+			app.errorJSON(w, err)
+			return
+		}
+
+		xlsx.MergeCell(sheetName, "A1", "G1")
+		xlsx.SetCellValue(sheetName, "A1", question.Question)
+		style, err := xlsx.NewStyle(&excelize.Style{Font: &excelize.Font{Bold: true, Size: 11, Color: "000000"}})
+		if err != nil {
+			fmt.Println(err)
+			return
+		}
+		xlsx.SetCellStyle(sheetName, "A1", "A1", style)
+
+		// Set the header for the sheet
+		xlsx.SetCellValue(sheetName, "A3", "No")
+		xlsx.SetCellValue(sheetName, "B3", "User ID")
+		xlsx.SetCellValue(sheetName, "C3", "Jawaban")
+		style, err = xlsx.NewStyle(&excelize.Style{
+			Font: &excelize.Font{Bold: true, Size: 11, Color: "000000"},
+			Fill: excelize.Fill{Type: "pattern", Pattern: 1, Color: []string{"#60A5FA"}},
+			Border: []excelize.Border{
+				excelize.Border{Type: "top", Color: "000000", Style: 1},
+				excelize.Border{Type: "left", Color: "000000", Style: 1},
+				excelize.Border{Type: "bottom", Color: "000000", Style: 1},
+				excelize.Border{Type: "right", Color: "000000", Style: 1},
+			},
+		})
+		if err != nil {
+			fmt.Println(err)
+			return
+		}
+		xlsx.SetCellStyle(sheetName, "A3", "C3", style)
+
+		xlsx.SetColWidth(sheetName, "A", "A", 4)
+		xlsx.SetColWidth(sheetName, "B", "B", 12)
+		xlsx.SetColWidth(sheetName, "C", "C", 32)
+
+		// Populate the sheet with answers
+		for i, answer := range question.Answers {
+			cellRow := i + 4 // starting from row 2
+			xlsx.SetCellValue(sheetName, fmt.Sprintf("A%d", cellRow), i+1)
+			xlsx.SetCellValue(sheetName, fmt.Sprintf("B%d", cellRow), answer.UserID)
+			xlsx.SetCellValue(sheetName, fmt.Sprintf("C%d", cellRow), answer.Answer)
+			style, err := xlsx.NewStyle(&excelize.Style{
+				Border: []excelize.Border{
+					excelize.Border{Type: "top", Color: "000000", Style: 1},
+					excelize.Border{Type: "left", Color: "000000", Style: 1},
+					excelize.Border{Type: "bottom", Color: "000000", Style: 1},
+					excelize.Border{Type: "right", Color: "000000", Style: 1},
+				},
+			})
+			if err != nil {
+				fmt.Println(err)
+				return
+			}
+
+			xlsx.SetCellStyle(sheetName, fmt.Sprintf("A%d", cellRow), fmt.Sprintf("C%d", cellRow), style)
+		}
+
+		// Set the created sheet as the active one
+		xlsx.SetActiveSheet(index)
+	}
+
+	currentTime := time.Now().Format("2006-01-02_15-04-05")
+	fileName := fmt.Sprintf("survei_%s_%s.xlsx", app.sanitizeFileName(form.Title), currentTime)
+
+	err = xlsx.SaveAs("/home/ikramzaidann/alumnihub/public/excel/workbook.xlsx")
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	w.Header().Set("Content-Type", "application/octet-stream")
+	w.Header().Set("Content-Disposition", "attachment; filename="+fileName)
+	w.Header().Set("Content-Transfer-Encoding", "binary")
+	w.Header().Set("Expires", "0")
+	xlsx.Write(w)
 }
 
 func (app *application) userAnswers(w http.ResponseWriter, r *http.Request) {
@@ -1410,7 +1765,7 @@ func (app *application) uploadImage(w http.ResponseWriter, r *http.Request) {
 	ext := filepath.Ext(handler.Filename)
 
 	// Create a temporary file to store the uploaded image
-	tempFile, err := os.CreateTemp("public", "upload-*"+ext)
+	tempFile, err := os.CreateTemp("/home/ikramzaidann/alumnihub/public", "upload-*"+ext)
 	if err != nil {
 		app.errorJSON(w, err)
 		return
@@ -1424,15 +1779,25 @@ func (app *application) uploadImage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Set file permissions to be readable by everyone (0644)
+	err = os.Chmod(tempFile.Name(), 0644)
+	if err != nil {
+		app.errorJSON(w, err)
+		return
+	}
+
+	// Generate the file path for response
 	fileName := filepath.Base(tempFile.Name())
 	filePath := filepath.Join("public", fileName)
 	filePath = strings.ReplaceAll(filePath, "\\", "/")
 
+	// Create an image model (assuming you have this struct)
 	image := models.Image{
 		FilePath: filePath,
 		FileName: fileName,
 	}
 
+	// Send response back to client
 	app.writeJSON(w, http.StatusAccepted, image)
 }
 

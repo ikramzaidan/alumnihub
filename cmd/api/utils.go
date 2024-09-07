@@ -84,25 +84,46 @@ func (app *application) getFirstImageFromHtml(body string) (string, error) {
 	var imgSrc string
 
 	// Fungsi rekursif untuk traversing node HTML
-	var f func(*html.Node)
-	f = func(n *html.Node) {
+	var f func(*html.Node) bool
+	f = func(n *html.Node) bool {
 		if n.Type == html.ElementNode && n.Data == "img" {
 			for _, attr := range n.Attr {
 				if attr.Key == "src" {
 					imgSrc = attr.Val
-					return
+					return true // Ditemukan, hentikan pencarian
 				}
 			}
 		}
 		for c := n.FirstChild; c != nil; c = c.NextSibling {
-			f(c)
+			if found := f(c); found {
+				return true // Jika sudah ditemukan, hentikan pencarian
+			}
 		}
+		return false
 	}
+
 	f(doc)
 
+	// Jika imgSrc masih kosong, kembalikan string kosong
 	if imgSrc == "" {
 		imgSrc = ""
 	}
 
 	return imgSrc, nil
+}
+
+// Helper function to sanitize the title for file name
+func (app *application) sanitizeFileName(title string) string {
+	// Replace spaces with underscores and remove special characters
+	return strings.ReplaceAll(strings.Map(func(r rune) rune {
+		if r == ' ' {
+			return '_'
+		}
+		// Only allow alphanumeric characters and underscores
+		if r >= 'a' && r <= 'z' || r >= 'A' && r <= 'Z' || r >= '0' && r <= '9' || r == '_' {
+			return r
+		}
+		// Replace any other character with an empty string
+		return -1
+	}, title), "__", "_")
 }

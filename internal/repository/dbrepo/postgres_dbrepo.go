@@ -580,6 +580,42 @@ func (m *PostgresDBRepo) GetProfileByUserID(id int) (*models.Profile, error) {
 	return &profile, nil
 }
 
+func (m *PostgresDBRepo) UpdateAdminProfile(profile models.Profile) error {
+	ctx, cancel := context.WithTimeout(context.Background(), dbTimeOut)
+	defer cancel()
+
+	stmt := `update admin_profile set bio = $1, name = $2, sm_facebook = $3, sm_instagram = $4, sm_twitter = $5, sm_tiktok = $6
+			where user_id = $7`
+
+	_, err := m.DB.ExecContext(ctx, stmt,
+		profile.Bio,
+		profile.UserName,
+		profile.Facebook,
+		profile.Instagram,
+		profile.Twitter,
+		profile.Tiktok,
+		profile.UserID,
+	)
+
+	if err != nil {
+		return err
+	}
+
+	stmt = `update users set photo = $1
+			where id = $2`
+
+	_, err = m.DB.ExecContext(ctx, stmt,
+		profile.Photo,
+		profile.UserID,
+	)
+
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
 func (m *PostgresDBRepo) GetAdminProfileByUserID(id int) (*models.Profile, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), dbTimeOut)
 	defer cancel()
@@ -2128,6 +2164,227 @@ func (m *PostgresDBRepo) DeleteJob(id int) error {
 	defer cancel()
 
 	stmt := `delete from jobs where id = $1`
+
+	_, err := m.DB.ExecContext(ctx, stmt, id)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (m *PostgresDBRepo) InsertAlumniEducation(education models.AlumniEducation) error {
+	ctx, cancel := context.WithTimeout(context.Background(), dbTimeOut)
+	defer cancel()
+
+	stmt := `insert into alumni_educations (user_id, school_name, school_degree, school_study_major, start_year, end_year, currently_studying, created_at, updated_at)
+			values ($1, $2, $3, $4, $5, $6, $7, $8, $9)`
+
+	_, err := m.DB.ExecContext(ctx, stmt,
+		education.UserID,
+		education.School,
+		education.Degree,
+		education.StudyMajor,
+		education.StartYear,
+		education.EndYear,
+		education.CurrentlyStudying,
+		education.CreatedAt,
+		education.UpdatedAt,
+	)
+
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (m *PostgresDBRepo) GetAlumniEducations(id int) ([]*models.AlumniEducation, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), dbTimeOut)
+	defer cancel()
+
+	query := `select id, user_id, school_name, school_degree, school_study_major, start_year, end_year, currently_studying, created_at, updated_at from alumni_educations where user_id = $1`
+
+	rows, err := m.DB.QueryContext(ctx, query, id)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var educations []*models.AlumniEducation
+
+	for rows.Next() {
+		var education models.AlumniEducation
+		err := rows.Scan(
+			&education.ID,
+			&education.UserID,
+			&education.School,
+			&education.Degree,
+			&education.StudyMajor,
+			&education.StartYear,
+			&education.EndYear,
+			&education.CurrentlyStudying,
+			&education.CreatedAt,
+			&education.UpdatedAt,
+		)
+
+		if err != nil {
+			return nil, err
+		}
+
+		educations = append(educations, &education)
+	}
+
+	return educations, nil
+}
+
+func (m *PostgresDBRepo) GetAlumniEducation(id int) (*models.AlumniEducation, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), dbTimeOut)
+	defer cancel()
+
+	query := `select id, user_id, school_name, school_degree, school_study_major, start_year, end_year, currently_studying, created_at, updated_at from alumni_educations where id = $1`
+
+	row := m.DB.QueryRowContext(ctx, query, id)
+
+	var education models.AlumniEducation
+
+	err := row.Scan(
+		&education.ID,
+		&education.UserID,
+		&education.School,
+		&education.Degree,
+		&education.StudyMajor,
+		&education.StartYear,
+		&education.EndYear,
+		&education.CurrentlyStudying,
+		&education.CreatedAt,
+		&education.UpdatedAt,
+	)
+
+	if err != nil {
+		return nil, err
+	}
+
+	return &education, nil
+}
+
+func (m *PostgresDBRepo) DeleteAlumniEducations(id int) error {
+	ctx, cancel := context.WithTimeout(context.Background(), dbTimeOut)
+	defer cancel()
+
+	stmt := `delete from alumni_educations where id = $1`
+
+	_, err := m.DB.ExecContext(ctx, stmt, id)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (m *PostgresDBRepo) InsertAlumniJob(alumnijob models.AlumniJob) error {
+	ctx, cancel := context.WithTimeout(context.Background(), dbTimeOut)
+	defer cancel()
+
+	stmt := `insert into alumni_jobs (user_id, position, company, company_location, employment_type, start_year, end_year, currently_working, created_at, updated_at)
+			values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`
+
+	_, err := m.DB.ExecContext(ctx, stmt,
+		alumnijob.UserID,
+		alumnijob.Position,
+		alumnijob.Company,
+		alumnijob.CompanyLocation,
+		alumnijob.EmploymentType,
+		alumnijob.StartYear,
+		alumnijob.EndYear,
+		alumnijob.CurrentlyWorking,
+		alumnijob.CreatedAt,
+		alumnijob.UpdatedAt,
+	)
+
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (m *PostgresDBRepo) GetAlumniJobs(id int) ([]*models.AlumniJob, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), dbTimeOut)
+	defer cancel()
+
+	query := `select id, user_id, position, company, company_location, employment_type, start_year, end_year, currently_working, created_at, updated_at from alumni_jobs where user_id = $1`
+
+	rows, err := m.DB.QueryContext(ctx, query, id)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var alumnijobs []*models.AlumniJob
+
+	for rows.Next() {
+		var alumnijob models.AlumniJob
+		err := rows.Scan(
+			&alumnijob.ID,
+			&alumnijob.UserID,
+			&alumnijob.Position,
+			&alumnijob.Company,
+			&alumnijob.CompanyLocation,
+			&alumnijob.EmploymentType,
+			&alumnijob.StartYear,
+			&alumnijob.EndYear,
+			&alumnijob.CurrentlyWorking,
+			&alumnijob.CreatedAt,
+			&alumnijob.UpdatedAt,
+		)
+
+		if err != nil {
+			return nil, err
+		}
+
+		alumnijobs = append(alumnijobs, &alumnijob)
+	}
+
+	return alumnijobs, nil
+}
+
+func (m *PostgresDBRepo) GetAlumniJob(id int) (*models.AlumniJob, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), dbTimeOut)
+	defer cancel()
+
+	query := `select id, user_id, position, company, company_location, employment_type, start_year, end_year, currently_working, created_at, updated_at from alumni_jobs where id = $1`
+
+	row := m.DB.QueryRowContext(ctx, query, id)
+
+	var alumnijob models.AlumniJob
+
+	err := row.Scan(
+		&alumnijob.ID,
+		&alumnijob.UserID,
+		&alumnijob.Position,
+		&alumnijob.Company,
+		&alumnijob.CompanyLocation,
+		&alumnijob.EmploymentType,
+		&alumnijob.StartYear,
+		&alumnijob.EndYear,
+		&alumnijob.CurrentlyWorking,
+		&alumnijob.CreatedAt,
+		&alumnijob.UpdatedAt,
+	)
+
+	if err != nil {
+		return nil, err
+	}
+
+	return &alumnijob, nil
+}
+
+func (m *PostgresDBRepo) DeleteAlumniJobs(id int) error {
+	ctx, cancel := context.WithTimeout(context.Background(), dbTimeOut)
+	defer cancel()
+
+	stmt := `delete from alumni_jobs where id = $1`
 
 	_, err := m.DB.ExecContext(ctx, stmt, id)
 	if err != nil {

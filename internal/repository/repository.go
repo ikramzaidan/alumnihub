@@ -32,6 +32,7 @@ type DatabaseRepo interface {
 	GetProfileByAlumniID(id int) (*models.Profile, error)
 	GetProfileByUserID(id int) (*models.Profile, error)
 
+	UpdateAdminProfile(profile models.Profile) error
 	GetAdminProfileByUserID(id int) (*models.Profile, error)
 
 	AllArticles() ([]*models.Article, error)
@@ -82,4 +83,14 @@ type DatabaseRepo interface {
 	InsertJob(job models.Job) (int, error)
 	UpdateJob(job models.Job) error
 	DeleteJob(id int) error
+
+	InsertAlumniEducation(education models.AlumniEducation) error
+	GetAlumniEducations(id int) ([]*models.AlumniEducation, error)
+	GetAlumniEducation(id int) (*models.AlumniEducation, error)
+	DeleteAlumniEducations(id int) error
+
+	InsertAlumniJob(alumnijob models.AlumniJob) error
+	GetAlumniJobs(id int) ([]*models.AlumniJob, error)
+	GetAlumniJob(id int) (*models.AlumniJob, error)
+	DeleteAlumniJobs(id int) error
 }
