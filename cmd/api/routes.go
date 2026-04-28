@@ -42,7 +42,7 @@ func routes(handlers *handler.Handler, authSvc *auth.Auth) http.Handler {
 		mux.Get("/forums", handlers.AllForums)
 		mux.Get("/forums/{id}", handlers.Forum)
 		mux.Get("/forums/user/{username}", handlers.AllUserForums)
-		mux.Post("/forums/create", handlers.InsertForum)
+		mux.Post("/forums", handlers.InsertForum)
 		mux.Delete("/forums/{id}", handlers.DeleteForum)
 		mux.Post("/forums/{id}/like", handlers.InsertLike)
 		mux.Post("/forums/{id}/unlike", handlers.DeleteLike)
@@ -58,7 +58,7 @@ func routes(handlers *handler.Handler, authSvc *auth.Auth) http.Handler {
 
 		mux.Get("/jobs", handlers.AllJobs)
 		mux.Get("/jobs/{id}", handlers.Job)
-		mux.Post("/jobs/create", handlers.InsertJob)
+		mux.Post("/jobs", handlers.InsertJob)
 		mux.Patch("/jobs/{id}", handlers.UpdateJob)
 		mux.Delete("/jobs/{id}", handlers.DeleteJob)
 
@@ -72,7 +72,7 @@ func routes(handlers *handler.Handler, authSvc *auth.Auth) http.Handler {
 
 			mux.Get("/dashboard", handlers.Dashboard)
 
-			mux.Post("/alumni/create", handlers.InsertAlumni)
+			mux.Post("/alumni", handlers.InsertAlumni)
 			mux.Post("/alumni/import", handlers.ImportAlumni)
 			mux.Post("/alumni/import/save", handlers.InsertImportAlumni)
 			mux.Patch("/alumni/{id}", handlers.UpdateAlumni)
@@ -83,14 +83,14 @@ func routes(handlers *handler.Handler, authSvc *auth.Auth) http.Handler {
 			mux.Patch("/articles/{id}", handlers.UpdateArticle)
 			mux.Delete("/articles/{id}", handlers.DeleteArticle)
 
-			mux.Post("/forms/create", handlers.InsertForm)
+			mux.Post("/forms", handlers.InsertForm)
 			mux.Patch("/forms/{id}", handlers.UpdateForm)
 			mux.Delete("/forms/{id}", handlers.DeleteForm)
 			mux.Get("/forms/{id}/answers", handlers.ShowFormAnswers)
 			mux.Get("/forms/{fid}/questions/{qid}/answers", handlers.ShowQuestionAnswers)
 
 			mux.Get("/questions/{id}", handlers.Question)
-			mux.Post("/questions/create", handlers.InsertQuestion)
+			mux.Post("/questions", handlers.InsertQuestion)
 			mux.Delete("/questions/{id}", handlers.DeleteQuestion)
 			mux.Patch("/questions/{id}", handlers.UpdateQuestion)
 		})
