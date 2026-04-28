@@ -23,8 +23,10 @@ func openDB(dsn string) (*sql.DB, error) {
 	return db, nil
 }
 
+// connectToDB is retained for backward compatibility with the legacy helper pattern.
+// The application now calls openDB directly and passes the connection into the repositories.
 func (app *application) connectToDB() (*sql.DB, error) {
-	connection, err := openDB(app.DSN)
+	connection, err := openDB(app.Config.DSN)
 	if err != nil {
 		return nil, err
 	}

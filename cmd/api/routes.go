@@ -1,96 +1,98 @@
-package main
+﻿package main
 
 import (
+	"alumnihub/internal/auth"
+	"alumnihub/internal/handler"
+	internalMiddleware "alumnihub/internal/middleware"
 	"net/http"
 
-	"github.com/go-chi/chi/v5"
-	"github.com/go-chi/chi/v5/middleware"
+	chi "github.com/go-chi/chi/v5"
+	chiMiddleware "github.com/go-chi/chi/v5/middleware"
 )
 
-func (app *application) routes() http.Handler {
+func routes(handlers *handler.Handler, authSvc *auth.Auth) http.Handler {
 	mux := chi.NewRouter()
 
-	mux.Use(middleware.Recoverer)
-	mux.Use(app.enableCORS)
+	mux.Use(chiMiddleware.Recoverer)
+	mux.Use(internalMiddleware.EnableCORS)
 
-	mux.Get("/", app.Home)
-	mux.Post("/authenticate", app.authenticate)
-	mux.Post("/register_check", app.registerCheck)
-	mux.Post("/register", app.register)
-	mux.Get("/refresh", app.refreshToken)
-	mux.Get("/logout", app.logout)
-	mux.Get("/public/{image_path}", app.serveImage)
-	mux.Get("/forms/{id}/answers/export", app.exportAnswers)
+	mux.Get("/", handlers.Home)
+	mux.Post("/authenticate", handlers.Authenticate)
+	mux.Post("/register_check", handlers.RegisterCheck)
+	mux.Post("/register", handlers.Register)
+	mux.Get("/refresh", handlers.RefreshToken)
+	mux.Get("/logout", handlers.Logout)
+	mux.Get("/public/{image_path}", handlers.ServeImage)
+	mux.Get("/forms/{id}/answers/export", handlers.ExportAnswers)
 
 	mux.Route("/", func(mux chi.Router) {
-		mux.Use(app.authRequired)
+		mux.Use(internalMiddleware.AuthRequired(authSvc))
 
-		mux.Get("/alumni", app.AllAlumni)
-		mux.Get("/alumni/{id}", app.Alumni)
+		mux.Get("/alumni", handlers.AllAlumni)
+		mux.Get("/alumni/{id}", handlers.Alumni)
 
-		mux.Get("/articles", app.allArticles)
-		mux.Get("/articles/{slug}", app.article)
+		mux.Get("/articles", handlers.AllArticles)
+		mux.Get("/articles/{slug}", handlers.Article)
 
-		mux.Get("/forms", app.allForms)                   // Get all forms data
-		mux.Get("/forms/{id}", app.form)                  // Get a form data without questions
-		mux.Get("/forms/{id}/show", app.showForm)         // Get a complete form data with questions and options within the form
-		mux.Post("/forms/{id}/submit", app.insertAnswers) // Submit form answers
+		mux.Get("/forms", handlers.AllForms)
+		mux.Get("/forms/{id}", handlers.Form)
+		mux.Get("/forms/{id}/show", handlers.ShowForm)
+		mux.Post("/forms/{id}/submit", handlers.InsertAnswers)
 
-		mux.Get("/forums", app.allForums) // Get all forum data
-		mux.Get("/forums/{id}", app.forum)
-		mux.Get("/forums/user/{username}", app.allUserForums)
-		mux.Post("/forums/create", app.insertForum)
-		mux.Delete("/forums/{id}", app.deleteForum)
-		mux.Post("/forums/{id}/like", app.insertLike)
-		mux.Post("/forums/{id}/unlike", app.deleteLike)
-		mux.Post("/forums/{id}/reply", app.insertComment)
+		mux.Get("/forums", handlers.AllForums)
+		mux.Get("/forums/{id}", handlers.Forum)
+		mux.Get("/forums/user/{username}", handlers.AllUserForums)
+		mux.Post("/forums/create", handlers.InsertForum)
+		mux.Delete("/forums/{id}", handlers.DeleteForum)
+		mux.Post("/forums/{id}/like", handlers.InsertLike)
+		mux.Post("/forums/{id}/unlike", handlers.DeleteLike)
+		mux.Post("/forums/{id}/reply", handlers.InsertComment)
 
-		mux.Get("/profile", app.myProfile)
-		mux.Get("/profile/{username}", app.profile)
-		mux.Patch("/profile/update", app.updateProfile)
-		mux.Post("/profile/educations/create", app.insertAlumniEducation)
-		mux.Delete("/profile/educations/{id}", app.deleteAlumniEducation)
-		mux.Post("/profile/jobs/create", app.insertAlumniJob)
-		mux.Delete("/profile/jobs/{id}", app.deleteAlumniJob)
+		mux.Get("/profile", handlers.MyProfile)
+		mux.Get("/profile/{username}", handlers.Profile)
+		mux.Patch("/profile", handlers.UpdateProfile)
+		mux.Post("/profile/educations", handlers.InsertAlumniEducation)
+		mux.Delete("/profile/educations/{id}", handlers.DeleteAlumniEducation)
+		mux.Post("/profile/jobs", handlers.InsertAlumniJob)
+		mux.Delete("/profile/jobs/{id}", handlers.DeleteAlumniJob)
 
-		mux.Get("/jobs", app.allJobs)
-		mux.Get("/jobs/{id}", app.job)
-		mux.Post("/jobs/create", app.insertJob)
-		mux.Patch("/jobs/{id}", app.updateJob)
-		mux.Delete("/jobs/{id}", app.deleteJob)
+		mux.Get("/jobs", handlers.AllJobs)
+		mux.Get("/jobs/{id}", handlers.Job)
+		mux.Post("/jobs/create", handlers.InsertJob)
+		mux.Patch("/jobs/{id}", handlers.UpdateJob)
+		mux.Delete("/jobs/{id}", handlers.DeleteJob)
 
-		mux.Get("/likes", app.userLikes)
-		mux.Get("/answers", app.userAnswers)
+		mux.Get("/likes", handlers.UserLikes)
+		mux.Get("/answers", handlers.UserAnswers)
 
-		mux.Post("/upload_image", app.uploadImage)
+		mux.Post("/upload_image", handlers.UploadImage)
 
-		// Routes untuk admin
 		mux.Route("/", func(mux chi.Router) {
-			mux.Use(app.adminRequired)
+			mux.Use(internalMiddleware.AdminRequired(authSvc))
 
-			mux.Get("/dashboard", app.Dashboard)
+			mux.Get("/dashboard", handlers.Dashboard)
 
-			mux.Post("/alumni/create", app.insertAlumni)
-			mux.Post("/alumni/import", app.importAlumni)
-			mux.Post("/alumni/import/save", app.insertImportAlumni)
-			mux.Patch("/alumni/{id}", app.updateAlumni)
-			mux.Delete("/alumni/{id}", app.deleteAlumni)
+			mux.Post("/alumni/create", handlers.InsertAlumni)
+			mux.Post("/alumni/import", handlers.ImportAlumni)
+			mux.Post("/alumni/import/save", handlers.InsertImportAlumni)
+			mux.Patch("/alumni/{id}", handlers.UpdateAlumni)
+			mux.Delete("/alumni/{id}", handlers.DeleteAlumni)
 
-			mux.Get("/articles/{id}/show", app.showArticle)
-			mux.Post("/articles/create", app.insertArticle)
-			mux.Patch("/articles/{id}", app.updateArticle)
-			mux.Delete("/articles/{id}", app.deleteArticle)
+			mux.Get("/articles/{id}/show", handlers.ShowArticle)
+			mux.Post("/articles", handlers.InsertArticle)
+			mux.Patch("/articles/{id}", handlers.UpdateArticle)
+			mux.Delete("/articles/{id}", handlers.DeleteArticle)
 
-			mux.Post("/forms/create", app.insertForm)
-			mux.Patch("/forms/{id}", app.updateForm)
-			mux.Delete("/forms/{id}", app.deleteForm)
-			mux.Get("/forms/{id}/answers", app.showFormAnswers)
-			mux.Get("/forms/{fid}/questions/{qid}/answers", app.showQuestionAnswers)
+			mux.Post("/forms/create", handlers.InsertForm)
+			mux.Patch("/forms/{id}", handlers.UpdateForm)
+			mux.Delete("/forms/{id}", handlers.DeleteForm)
+			mux.Get("/forms/{id}/answers", handlers.ShowFormAnswers)
+			mux.Get("/forms/{fid}/questions/{qid}/answers", handlers.ShowQuestionAnswers)
 
-			mux.Get("/questions/{id}", app.question)
-			mux.Post("/questions/create", app.insertQuestion)
-			mux.Delete("/questions/{id}", app.deleteQuestion)
-			mux.Patch("/questions/{id}", app.updateQuestion)
+			mux.Get("/questions/{id}", handlers.Question)
+			mux.Post("/questions/create", handlers.InsertQuestion)
+			mux.Delete("/questions/{id}", handlers.DeleteQuestion)
+			mux.Patch("/questions/{id}", handlers.UpdateQuestion)
 		})
 	})
 
