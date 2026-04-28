@@ -1,13 +1,24 @@
-version: '3'
-
 services:
+  app:
+    build: 
+      context: .
+      dockerfile: Dockerfile.dev
+    container_name: alumnihub
+    env_file:
+      - .env
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./:/app
+    depends_on:
+      - postgres
 
   postgres:
-    image: 'postgres:14.5'
+    image: 'postgres:16'
     restart: always
     environment:
-      POSTGRES_USER: user
-      POSTGRES_PASSWORD: user
+      POSTGRES_USER: alumnihub
+      POSTGRES_PASSWORD: alumnihub
       POSTGRES_DB: alumnihub
     logging:
       options:
@@ -16,5 +27,8 @@ services:
     ports:
       - '5432:5432'
     volumes:
-      - ./postgres-data:/var/lib/postgresql/data
-      - ./sql/create_tables.sql:/docker-entrypoint-initdb.d/create_tables.sql
+      - postgres-data:/var/lib/postgresql/data
+      - ./migrations:/docker-entrypoint-initdb.d
+
+volumes:
+  postgres-data:
