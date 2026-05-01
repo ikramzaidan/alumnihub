@@ -354,7 +354,7 @@ func (h *Handler) ExportAnswers(w http.ResponseWriter, r *http.Request) {
 	currentTime := time.Now().Format("2006-01-02_15-04-05")
 	fileName := fmt.Sprintf("survei_%s_%s.xlsx", utils.SanitizeFileName(form.Title), currentTime)
 
-	err = xlsx.SaveAs("/home/ikramzaidann/alumnihub/public/excel/workbook.xlsx")
+	err = xlsx.SaveAs("public/excel/workbook.xlsx")
 	if err != nil {
 		_ = utils.ErrorJSON(w, err)
 		return

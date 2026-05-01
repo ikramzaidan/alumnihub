@@ -55,6 +55,19 @@ func (s *JobService) UpdateJob(jobID int, payload models.Job) error {
 	return s.Repo.UpdateJob(*job)
 }
 
-func (s *JobService) DeleteJob(id int) error {
-	return s.Repo.DeleteJob(id)
+func (s *JobService) DeleteJob(userID int, jobID int) error {
+	if jobID <= 0 {
+		return errors.New("invalid job id")
+	}
+
+	deleted, err := s.Repo.DeleteJob(userID, jobID)
+	if err != nil {
+		return err
+	}
+
+	if !deleted {
+		return errors.New("job not found or unauthorized")
+	}
+
+	return nil
 }

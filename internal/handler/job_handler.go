@@ -96,6 +96,18 @@ func (h *Handler) UpdateJob(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) DeleteJob(w http.ResponseWriter, r *http.Request) {
+	claims, ok := r.Context().Value(auth.UserClaimsKey).(*auth.Claims)
+	if !ok {
+		_ = utils.ErrorJSON(w, errors.New("no claims in context"))
+		return
+	}
+
+	userID, err := strconv.Atoi(claims.Subject)
+	if err != nil {
+		_ = utils.ErrorJSON(w, errors.New("invalid user ID in token"))
+		return
+	}
+
 	id := chi.URLParam(r, "id")
 	jobID, err := strconv.Atoi(id)
 	if err != nil {
@@ -103,7 +115,7 @@ func (h *Handler) DeleteJob(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := h.JobService.DeleteJob(jobID); err != nil {
+	if err := h.JobService.DeleteJob(userID, jobID); err != nil {
 		_ = utils.ErrorJSON(w, err)
 		return
 	}

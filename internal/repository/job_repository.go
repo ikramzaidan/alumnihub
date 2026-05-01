@@ -1,9 +1,10 @@
 package repository
 
 import (
-    "alumnihub/internal/models"
-    "context"
+	"alumnihub/internal/models"
+	"context"
 )
+
 func (m *PostgresDBRepo) AllJobs() ([]*models.Job, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), dbTimeOut)
 	defer cancel()
@@ -44,7 +45,6 @@ func (m *PostgresDBRepo) AllJobs() ([]*models.Job, error) {
 	return jobs, nil
 }
 
-
 func (m *PostgresDBRepo) Job(id int) (*models.Job, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), dbTimeOut)
 	defer cancel()
@@ -77,7 +77,6 @@ func (m *PostgresDBRepo) Job(id int) (*models.Job, error) {
 	return &job, nil
 }
 
-
 func (m *PostgresDBRepo) InsertJob(job models.Job) (int, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), dbTimeOut)
 	defer cancel()
@@ -107,7 +106,6 @@ func (m *PostgresDBRepo) InsertJob(job models.Job) (int, error) {
 	return newID, nil
 }
 
-
 func (m *PostgresDBRepo) UpdateJob(job models.Job) error {
 	ctx, cancel := context.WithTimeout(context.Background(), dbTimeOut)
 	defer cancel()
@@ -135,17 +133,21 @@ func (m *PostgresDBRepo) UpdateJob(job models.Job) error {
 	return nil
 }
 
-
-func (m *PostgresDBRepo) DeleteJob(id int) error {
+func (m *PostgresDBRepo) DeleteJob(userID int, jobID int) (bool, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), dbTimeOut)
 	defer cancel()
 
-	stmt := `delete from jobs where id = $1`
+	stmt := `delete from jobs where id = $1 and user_id = $2`
 
-	_, err := m.DB.ExecContext(ctx, stmt, id)
+	result, err := m.DB.ExecContext(ctx, stmt, jobID, userID)
 	if err != nil {
-		return err
+		return false, err
 	}
 
-	return nil
+	rows, err := result.RowsAffected()
+	if err != nil {
+		return false, err
+	}
+
+	return rows > 0, nil
 }

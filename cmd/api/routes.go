@@ -20,6 +20,8 @@ func routes(handlers *handler.Handler, authSvc *auth.Auth) http.Handler {
 	mux.Post("/authenticate", handlers.Authenticate)
 	mux.Post("/register_check", handlers.RegisterCheck)
 	mux.Post("/register", handlers.Register)
+	mux.Post("/forgot_password", handlers.ForgotPassword)
+	mux.Post("/reset_password", handlers.ResetPassword)
 	mux.Get("/refresh", handlers.RefreshToken)
 	mux.Get("/logout", handlers.Logout)
 	mux.Get("/public/{image_path}", handlers.ServeImage)
