@@ -70,13 +70,13 @@ func (h *Handler) InsertForm(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	_, err := h.FormService.CreateForm(form)
+	formID, err := h.FormService.CreateForm(form)
 	if err != nil {
 		_ = utils.ErrorJSON(w, err)
 		return
 	}
 
-	resp := utils.JSONResponse{Error: false, Message: fmt.Sprintf("New survey has been successfully created with id %d", form.ID)}
+	resp := utils.JSONResponse{Error: false, Message: fmt.Sprintf("New survey has been successfully created with id %d", formID)}
 	_ = utils.WriteJSON(w, http.StatusCreated, resp)
 }
 
