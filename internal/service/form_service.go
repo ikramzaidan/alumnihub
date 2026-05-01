@@ -46,6 +46,7 @@ func (s *FormService) UpdateForm(formID int, payload models.Form) error {
 
 	form.Title = payload.Title
 	form.Description = payload.Description
+	form.Hidden = payload.Hidden
 	form.HasTimeLimit = payload.HasTimeLimit
 	form.StartDate = payload.StartDate
 	form.UpdatedAt = time.Now()
