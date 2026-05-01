@@ -4,6 +4,7 @@ import (
 	"alumnihub/internal/models"
 	"context"
 	"database/sql"
+	"time"
 )
 
 func (m *PostgresDBRepo) InsertUser(user models.User) (int, error) {
@@ -164,4 +165,18 @@ func (m *PostgresDBRepo) GetUserPhotoByID(id int) (string, error) {
 	}
 
 	return "", nil
+}
+
+func (m *PostgresDBRepo) UpdateUserPassword(id int, password string) error {
+	ctx, cancel := context.WithTimeout(context.Background(), dbTimeOut)
+	defer cancel()
+
+	stmt := `update users set password = $1, updated_at = $2 where id = $3`
+
+	_, err := m.DB.ExecContext(ctx, stmt, password, time.Now(), id)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }

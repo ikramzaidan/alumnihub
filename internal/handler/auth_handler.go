@@ -28,6 +28,15 @@ type forumPayload struct {
 	Forum string `json:"forum_text"`
 }
 
+type forgotPasswordPayload struct {
+	Email string `json:"email"`
+}
+
+type resetPasswordPayload struct {
+	Token    string `json:"token"`
+	Password string `json:"password"`
+}
+
 func NewAuthHandler(authService *service.AuthService, authSvc *auth.Auth) *Handler {
 	return &Handler{AuthService: authService, Auth: authSvc}
 }
@@ -120,4 +129,36 @@ func (h *Handler) RefreshToken(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) Logout(w http.ResponseWriter, r *http.Request) {
 	http.SetCookie(w, h.Auth.GetExpiredRefreshCookie())
 	w.WriteHeader(http.StatusNoContent)
+}
+
+func (h *Handler) ForgotPassword(w http.ResponseWriter, r *http.Request) {
+	var payload forgotPasswordPayload
+	if err := utils.ReadJSON(w, r, &payload); err != nil {
+		_ = utils.ErrorJSON(w, err, http.StatusBadRequest)
+		return
+	}
+
+	// Always return generic success message for security
+	// Do not reveal whether email exists
+	_ = h.AuthService.ForgotPassword(payload.Email)
+
+	resp := utils.JSONResponse{Error: false, Message: "If the email exists, a reset link has been sent."}
+	_ = utils.WriteJSON(w, http.StatusOK, resp)
+}
+
+func (h *Handler) ResetPassword(w http.ResponseWriter, r *http.Request) {
+	var payload resetPasswordPayload
+	if err := utils.ReadJSON(w, r, &payload); err != nil {
+		_ = utils.ErrorJSON(w, err, http.StatusBadRequest)
+		return
+	}
+
+	err := h.AuthService.ResetPassword(payload.Token, payload.Password)
+	if err != nil {
+		_ = utils.ErrorJSON(w, err, http.StatusBadRequest)
+		return
+	}
+
+	resp := utils.JSONResponse{Error: false, Message: "Password has been reset successfully"}
+	_ = utils.WriteJSON(w, http.StatusOK, resp)
 }

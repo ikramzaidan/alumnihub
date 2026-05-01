@@ -1,7 +1,9 @@
 package service
 
 import (
+	"crypto/rand"
 	"database/sql"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"strconv"
@@ -14,6 +16,9 @@ import (
 	"github.com/golang-jwt/jwt/v4"
 	"golang.org/x/crypto/bcrypt"
 )
+
+// TokenExpiryMinutes defines how long a password reset token is valid
+const TokenExpiryMinutes = 30
 
 type AuthService struct {
 	Repo repository.DatabaseRepo
@@ -141,4 +146,116 @@ func (s *AuthService) RefreshToken(refreshToken string) (auth.TokenPairs, error)
 	}
 
 	return s.Auth.GenerateTokenPair(&auth.JwtUser{ID: user.ID, Username: user.Username, Role: user.IsAdmin})
+}
+
+// generateResetToken creates a cryptographically secure random token
+func (s *AuthService) generateResetToken() (string, error) {
+	bytes := make([]byte, 32)
+	if _, err := rand.Read(bytes); err != nil {
+		return "", err
+	}
+	return hex.EncodeToString(bytes), nil
+}
+
+// ForgotPassword handles the forgot password request
+// Returns no error for security reasons (generic response)
+func (s *AuthService) ForgotPassword(email string) error {
+	// Validate email format
+	if email == "" {
+		return errors.New("email is required")
+	}
+
+	// Check if user exists
+	_, err := s.Repo.GetUserByEmail(email)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			// User doesn't exist - return success anyway for security
+			// Do not reveal whether email exists
+			return nil
+		}
+		// Database error - still return success for security
+		return nil
+	}
+
+	// Generate secure reset token
+	token, err := s.generateResetToken()
+	if err != nil {
+		return err
+	}
+
+	// Delete any existing reset tokens for this email (single token policy)
+	_ = s.Repo.DeletePasswordResetsByEmail(email)
+
+	// Save token to database with expiration
+	pr := models.PasswordReset{
+		Email:     email,
+		Token:     token,
+		ExpiresAt: time.Now().Add(TokenExpiryMinutes * time.Minute),
+		CreatedAt: time.Now(),
+	}
+
+	if err := s.Repo.InsertPasswordReset(pr); err != nil {
+		return err
+	}
+
+	// In production, send email here
+	// For now, we log the token (remove in production)
+	fmt.Printf("[DEV] Password reset token for %s: %s\n", email, token)
+
+	return nil
+}
+
+// ResetPassword handles the password reset request
+func (s *AuthService) ResetPassword(token, newPassword string) error {
+	// Validate input
+	if token == "" {
+		return errors.New("token is required")
+	}
+	if newPassword == "" {
+		return errors.New("new password is required")
+	}
+	if len(newPassword) < 6 {
+		return errors.New("password must be at least 6 characters")
+	}
+
+	// Get token from database
+	pr, err := s.Repo.GetPasswordResetByToken(token)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return errors.New("invalid or expired token")
+		}
+		return errors.New("error validating token")
+	}
+
+	// Check if token has expired
+	if time.Now().After(pr.ExpiresAt) {
+		// Clean up expired token
+		_ = s.Repo.DeletePasswordResetByToken(token)
+		return errors.New("token has expired")
+	}
+
+	// Get user by email
+	user, err := s.Repo.GetUserByEmail(pr.Email)
+	if err != nil {
+		return errors.New("user not found")
+	}
+
+	// Hash new password
+	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(newPassword), bcrypt.DefaultCost)
+	if err != nil {
+		return err
+	}
+
+	// Update user password
+	if err := s.Repo.UpdateUserPassword(user.ID, string(hashedPassword)); err != nil {
+		return err
+	}
+
+	// Delete the used token (single-use)
+	if err := s.Repo.DeletePasswordResetByToken(token); err != nil {
+		// Log error but don't fail - password was already changed
+		fmt.Printf("Error deleting used token: %v\n", err)
+	}
+
+	return nil
 }

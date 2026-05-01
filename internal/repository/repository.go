@@ -13,6 +13,14 @@ type UserRepository interface {
 	GetUserUsernameByID(id int) (string, error)
 	GetUserIDByUsername(username string) (int, error)
 	GetUserPhotoByID(id int) (string, error)
+	UpdateUserPassword(id int, password string) error
+}
+
+type PasswordResetRepository interface {
+	InsertPasswordReset(pr models.PasswordReset) error
+	GetPasswordResetByToken(token string) (*models.PasswordReset, error)
+	DeletePasswordResetByToken(token string) error
+	DeletePasswordResetsByEmail(email string) error
 }
 
 type AlumniRepository interface {
@@ -98,13 +106,14 @@ type JobRepository interface {
 	Job(id int) (*models.Job, error)
 	InsertJob(job models.Job) (int, error)
 	UpdateJob(job models.Job) error
-	DeleteJob(id int) error
+	DeleteJob(userID int, jobID int) (bool, error)
 }
 
 type DatabaseRepo interface {
 	Connection() *sql.DB
 
 	UserRepository
+	PasswordResetRepository
 	AlumniRepository
 	DashboardRepository
 	ProfileRepository
