@@ -21,14 +21,16 @@ import (
 const TokenExpiryMinutes = 30
 
 type AuthService struct {
-	Repo repository.DatabaseRepo
-	Auth *auth.Auth
+	Repo         repository.DatabaseRepo
+	Auth         *auth.Auth
+	EmailService *EmailService
 }
 
-func NewAuthService(repo repository.DatabaseRepo, authSvc *auth.Auth) *AuthService {
+func NewAuthService(repo repository.DatabaseRepo, authSvc *auth.Auth, emailSvc *EmailService) *AuthService {
 	return &AuthService{
-		Repo: repo,
-		Auth: authSvc,
+		Repo:         repo,
+		Auth:         authSvc,
+		EmailService: emailSvc,
 	}
 }
 
@@ -198,9 +200,11 @@ func (s *AuthService) ForgotPassword(email string) error {
 		return err
 	}
 
-	// In production, send email here
-	// For now, we log the token (remove in production)
-	fmt.Printf("[DEV] Password reset token for %s: %s\n", email, token)
+	// Send password reset email
+	if err := s.EmailService.SendPasswordResetEmail(email, token); err != nil {
+		fmt.Printf("Failed to send password reset email: %v\n", err)
+		return err
+	}
 
 	return nil
 }
@@ -255,6 +259,12 @@ func (s *AuthService) ResetPassword(token, newPassword string) error {
 	if err := s.Repo.DeletePasswordResetByToken(token); err != nil {
 		// Log error but don't fail - password was already changed
 		fmt.Printf("Error deleting used token: %v\n", err)
+	}
+
+	// Send confirmation email
+	if err := s.EmailService.SendPasswordResetSuccessEmail(pr.Email); err != nil {
+		// Log the error but don't fail the password reset
+		fmt.Printf("Failed to send password reset confirmation email: %v\n", err)
 	}
 
 	return nil

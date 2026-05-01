@@ -14,6 +14,7 @@ type Handler struct {
 	ForumService     *service.ForumService
 	JobService       *service.JobService
 	DashboardService *service.DashboardService
+	EmailService     *service.EmailService
 	Auth             *auth.Auth
 }
 
@@ -26,6 +27,7 @@ func NewHandler(
 	forumService *service.ForumService,
 	jobService *service.JobService,
 	dashboardService *service.DashboardService,
+	emailService *service.EmailService,
 	auth *auth.Auth,
 ) *Handler {
 	return &Handler{
@@ -37,6 +39,7 @@ func NewHandler(
 		ForumService:     forumService,
 		JobService:       jobService,
 		DashboardService: dashboardService,
+		EmailService:     emailService,
 		Auth:             auth,
 	}
 }

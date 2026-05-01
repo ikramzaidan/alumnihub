@@ -8,4 +8,11 @@ type AppConfig struct {
 	JWTIssuer    string
 	JWTAudience  string
 	CookieDomain string
+
+	// SMTP Configuration
+	SMTPHost     string
+	SMTPPort     int
+	SMTPUsername string
+	SMTPPassword string
+	SMTPFrom     string
 }

@@ -140,7 +140,16 @@ func (h *Handler) ForgotPassword(w http.ResponseWriter, r *http.Request) {
 
 	// Always return generic success message for security
 	// Do not reveal whether email exists
-	_ = h.AuthService.ForgotPassword(payload.Email)
+	err := h.AuthService.ForgotPassword(payload.Email)
+	if err != nil {
+		if err.Error() == "email is required" {
+			_ = utils.ErrorJSON(w, err, http.StatusBadRequest)
+			return
+		}
+
+		_ = utils.ErrorJSON(w, err, http.StatusInternalServerError)
+		return
+	}
 
 	resp := utils.JSONResponse{Error: false, Message: "If the email exists, a reset link has been sent."}
 	_ = utils.WriteJSON(w, http.StatusOK, resp)
