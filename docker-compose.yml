@@ -1,31 +1,17 @@
 services:
   app:
-    build: 
+    build:
       context: .
-      dockerfile: Dockerfile.dev
-    container_name: alumnihub
-    env_file:
-      - .env
     ports:
       - "8080:8080"
-    volumes:
-      - ./:/app
     depends_on:
       - postgres
 
   postgres:
-    image: 'postgres:16'
+    image: postgres:16
     restart: always
-    environment:
-      POSTGRES_USER: alumnihub
-      POSTGRES_PASSWORD: alumnihub
-      POSTGRES_DB: alumnihub
-    logging:
-      options:
-        max-size: 10m
-        max-file: "3"
     ports:
-      - '5432:5432'
+      - "5432:5432"
     volumes:
       - postgres-data:/var/lib/postgresql/data
       - ./migrations:/docker-entrypoint-initdb.d

@@ -27,4 +27,7 @@ tmp/
 # Go workspace file
 go.work
 
+.env
+docker-compose.prod.yml
+docker-compose.override.yml
 # End of https://www.toptal.com/developers/gitignore/api/go
