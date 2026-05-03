@@ -96,8 +96,6 @@ func main() {
 
 	log.Println("Starting application on", port)
 
-	http.Handle("/public/", http.StripPrefix("/public/", http.FileServer(http.Dir("/home/ikramzaidann/alumnihub/public"))))
-
 	err = http.ListenAndServe(fmt.Sprintf(":%d", port), routes(app.Handlers, app.Auth))
 	if err != nil {
 		log.Fatal(err)
