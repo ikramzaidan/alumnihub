@@ -7,7 +7,7 @@ type Form struct {
 	Title          string      `json:"title"`
 	Description    string      `json:"description"`
 	Hidden         bool        `json:"hidden"`
-	HasTimeLimit   string      `json:"has_time_limit"`
+	HasTimeLimit   bool        `json:"has_time_limit"`
 	StartDate      time.Time   `json:"start_date"`
 	EndDate        time.Time   `json:"end_date"`
 	CreatedAt      time.Time   `json:"created_at"`
