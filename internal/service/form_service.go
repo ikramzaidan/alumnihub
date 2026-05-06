@@ -49,6 +49,7 @@ func (s *FormService) UpdateForm(formID int, payload models.Form) error {
 	form.Hidden = payload.Hidden
 	form.HasTimeLimit = payload.HasTimeLimit
 	form.StartDate = payload.StartDate
+	form.EndDate = payload.EndDate
 	form.UpdatedAt = time.Now()
 
 	return s.Repo.UpdateForm(*form)
