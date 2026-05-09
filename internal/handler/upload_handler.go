@@ -66,5 +66,35 @@ func (h *Handler) UploadImage(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) ServeImage(w http.ResponseWriter, r *http.Request) {
 	imagePath := chi.URLParam(r, "image_path")
 	imageFile := filepath.Join("public", imagePath)
-	http.ServeFile(w, r, imageFile)
+
+	// Prevent directory traversal
+	cleanedPath := filepath.Clean(imageFile)
+	if !strings.HasPrefix(cleanedPath, filepath.Clean("public")) {
+		http.Error(w, "Forbidden", http.StatusForbidden)
+		return
+	}
+
+	http.ServeFile(w, r, cleanedPath)
+}
+
+func (h *Handler) DownloadExcel(w http.ResponseWriter, r *http.Request) {
+	filename := chi.URLParam(r, "filename")
+
+	// Prevent directory traversal - only allow filenames without path separators
+	if strings.Contains(filename, "/") || strings.Contains(filename, "\\") || filename == ".." || strings.HasPrefix(filename, ".") {
+		http.Error(w, "Forbidden", http.StatusForbidden)
+		return
+	}
+
+	excelFile := filepath.Join("public", "excel", filename)
+
+	// Verify the file exists before serving
+	if _, err := os.Stat(excelFile); os.IsNotExist(err) {
+		http.Error(w, "File not found", http.StatusNotFound)
+		return
+	}
+
+	w.Header().Set("Content-Disposition", "attachment; filename="+filename)
+	w.Header().Set("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+	http.ServeFile(w, r, excelFile)
 }

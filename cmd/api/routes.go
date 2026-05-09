@@ -25,6 +25,7 @@ func routes(handlers *handler.Handler, authSvc *auth.Auth) http.Handler {
 	mux.Get("/refresh", handlers.RefreshToken)
 	mux.Get("/logout", handlers.Logout)
 	mux.Get("/public/{image_path}", handlers.ServeImage)
+	mux.Get("/excel/{filename}", handlers.DownloadExcel)
 	mux.Get("/forms/{id}/answers/export", handlers.ExportAnswers)
 
 	mux.Route("/", func(mux chi.Router) {
