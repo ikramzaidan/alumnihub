@@ -78,6 +78,8 @@ func (m *PostgresDBRepo) AllForums() ([]*models.Forum, error) {
 		if !isAdmin {
 			forum.UserName = userName
 			forum.UserPhoto = userPhoto
+		} else {
+			forum.UserPhoto = userPhoto
 		}
 
 		forums = append(forums, &forum)
