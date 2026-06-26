@@ -354,15 +354,12 @@ func (h *Handler) ExportAnswers(w http.ResponseWriter, r *http.Request) {
 	currentTime := time.Now().Format("2006-01-02_15-04-05")
 	fileName := fmt.Sprintf("survei_%s_%s.xlsx", utils.SanitizeFileName(form.Title), currentTime)
 
-	err = xlsx.SaveAs("public/excel/workbook.xlsx")
-	if err != nil {
-		_ = utils.ErrorJSON(w, err)
-		return
-	}
-
 	w.Header().Set("Content-Type", "application/octet-stream")
 	w.Header().Set("Content-Disposition", "attachment; filename="+fileName)
 	w.Header().Set("Content-Transfer-Encoding", "binary")
 	w.Header().Set("Expires", "0")
-	_ = xlsx.Write(w)
+	if err := xlsx.Write(w); err != nil {
+		_ = utils.ErrorJSON(w, err)
+		return
+	}
 }
